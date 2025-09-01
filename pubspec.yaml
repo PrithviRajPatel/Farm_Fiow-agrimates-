@@ -59,9 +59,9 @@ flutter:
     - assets/images/
     - assets/Crops/
     - assets/Icon/
-    - assets/icon/weather.png
-    - assets/icon/Market.png
-    - assets/icon/Soil.png
+    - assets/Icon/weather.png
+    - assets/Icon/Market.png
+    - assets/Icon/Soil.png
 
 # ✅ Launcher icon setup
 flutter_launcher_icons:

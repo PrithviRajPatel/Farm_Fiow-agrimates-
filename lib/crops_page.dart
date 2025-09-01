@@ -13,12 +13,12 @@ class _CropSelectionPageState extends State<CropSelectionPage> {
   String? selectedCrop;
 
   final List<Map<String, String>> crops = [
-    {"name": "Gram", "image": "assets/crops/gram.png"},
-    {"name": "Pea", "image": "assets/crops/pea.png"},
-    {"name": "Oats", "image": "assets/crops/oats.png"},
-    {"name": "Barley", "image": "assets/crops/barley.png"},
-    {"name": "Pearl Millet", "image": "assets/crops/pearl_millet.png"},
-    {"name": "Rye", "image": "assets/crops/rye.png"},
+    {"name": "Gram", "image": "assets/Crops/gram.png"},
+    {"name": "Pea", "image": "assets/Crops/pea.png"},
+    {"name": "Oats", "image": "assets/Crops/oats.png"},
+    {"name": "Barley", "image": "assets/Crops/barley.png"},
+    {"name": "Pearl Millet", "image": "assets/Crops/pearl_millet.png"},
+    {"name": "Rye", "image": "assets/Crops/rye.png"},
   ];
 
   Future<void> _saveCropAndContinue() async {
