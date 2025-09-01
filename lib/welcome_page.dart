@@ -93,6 +93,35 @@ class _WelcomePageState extends State<WelcomePage>
     return fallbackName;
   }
 
+  Future<void> _handleGetStarted(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (context.mounted) {
+        Navigator.pushReplacementNamed(context, "/login");
+      }
+      return;
+    }
+
+    final farmerRef =
+    FirebaseFirestore.instance.collection("farmers").doc(user.uid);
+
+    final doc = await farmerRef.get();
+    if (!doc.exists) {
+      await farmerRef.set({
+        "uid": user.uid,
+        "email": user.email,
+        "name": user.displayName ?? user.email?.split('@')[0] ?? "Farmer",
+        "createdAt": FieldValue.serverTimestamp(),
+        "selectedCrop": null,
+      });
+    }
+
+    if (context.mounted) {
+      Navigator.pushNamed(context, "/cropSelection");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -154,7 +183,8 @@ class _WelcomePageState extends State<WelcomePage>
                     child: FutureBuilder<String>(
                       future: _getFarmerName(),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
                           return const CircularProgressIndicator();
                         }
 
@@ -170,8 +200,8 @@ class _WelcomePageState extends State<WelcomePage>
                                 CircleAvatar(
                                   radius: 70,
                                   backgroundColor: Colors.green.shade100,
-                                  backgroundImage:
-                                  const AssetImage("assets/images/logo.png"),
+                                  backgroundImage: const AssetImage(
+                                      "assets/images/logo.png"),
                                 ),
                                 const SizedBox(height: 40),
 
@@ -186,13 +216,11 @@ class _WelcomePageState extends State<WelcomePage>
                                 ),
                                 const SizedBox(height: 60),
 
+                                // ✅ Get Started Button
                                 ScaleTransition(
                                   scale: _bounceAnimation,
                                   child: InkWell(
-                                    onTap: () {
-                                      Navigator.pushReplacementNamed(
-                                          context, "/features");
-                                    },
+                                    onTap: () => _handleGetStarted(context),
                                     borderRadius: BorderRadius.circular(30),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(

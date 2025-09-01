@@ -11,9 +11,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Cupertino icons
-  cupertino_icons: ^1.0.8
-
   # ✅ Firebase core (latest stable)
   firebase_core: ^3.6.0
 
@@ -26,6 +23,9 @@ dependencies:
   # ✅ Facebook login
   flutter_facebook_auth: ^7.1.0
 
+  # ✅ Geolocator (location)
+  geolocator: ^12.0.0
+
   # ✅ Secure storage
   flutter_secure_storage: ^9.2.2
 
@@ -34,6 +34,12 @@ dependencies:
 
   # ✅ Cloud Firestore
   cloud_firestore: ^5.4.4
+
+  # ✅ Intl (date formatting, numbers, etc.)
+  intl: ^0.19.0
+
+  # Cupertino icons
+  cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:

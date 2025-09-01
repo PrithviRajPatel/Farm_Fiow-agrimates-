@@ -1,0 +1,83 @@
+import 'dart:async';
+import 'dart:math';
+import 'package:flutter/material.dart';
+
+class DashboardPage extends StatelessWidget {
+  final String crop;
+  const DashboardPage({super.key, required this.crop});
+
+  // 🔹 Fake IoT Sensor Stream
+  Stream<Map<String, dynamic>> fakeSensorStream() async* {
+    final random = Random();
+    while (true) {
+      await Future.delayed(const Duration(seconds: 3));
+      yield {
+        "soilMoisture": 30 + random.nextInt(40), // 30–70 %
+        "temperature": 20 + random.nextInt(10),  // 20–30 °C
+        "npk": {
+          "N": random.nextInt(100),
+          "P": random.nextInt(100),
+          "K": random.nextInt(100),
+        },
+        "power": random.nextBool() ? "ON" : "OFF",
+      };
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Dashboard - $crop"),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<Map<String, dynamic>>(
+        stream: fakeSensorStream(), // 🔹 Live simulation
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final data = snapshot.data!;
+          final npk = data["npk"];
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildCard("🌡 Temperature", "${data["temperature"]} °C"),
+                _buildCard("💧 Soil Moisture", "${data["soilMoisture"]} %"),
+                _buildCard("🔋 Power Status", data["power"]),
+                _buildCard("🧪 NPK Levels",
+                    "N: ${npk["N"]}, P: ${npk["P"]}, K: ${npk["K"]}"),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // 🔹 Reusable Card Widget
+  Widget _buildCard(String title, String value) {
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text(value,
+                style: const TextStyle(fontSize: 16, color: Colors.black87)),
+          ],
+        ),
+      ),
+    );
+  }
+}

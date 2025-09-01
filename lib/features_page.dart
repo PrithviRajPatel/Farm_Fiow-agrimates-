@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FeaturesPage extends StatefulWidget {
   const FeaturesPage({super.key});
@@ -11,16 +13,13 @@ class FeaturesPage extends StatefulWidget {
 
 class _FeaturesPageState extends State<FeaturesPage>
     with TickerProviderStateMixin {
-  final PageController _pageController = PageController();
-  Timer? _timer;
   int _currentPage = 0;
+  Timer? _timer;
 
-  late AnimationController _bounceController;
-  late Animation<double> _bounceAnimation;
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   late AnimationController _dotPulseController;
-  late AnimationController _arrowController;
-  late Animation<double> _arrowAnimation;
 
   final features = [
     {"title": "🌦 Weather Updates", "desc": "Get real-time weather of your village"},
@@ -39,79 +38,83 @@ class _FeaturesPageState extends State<FeaturesPage>
     "assets/background/Crop.png",
     "assets/background/Water.png",
     "assets/background/Pest.png",
-    "assets/background/Knowleadge.png",
+    "assets/background/Knowledge.png",
   ];
 
   @override
   void initState() {
     super.initState();
-    _startAutoPageSwitch();
 
-    // Bounce animation for button
-    _bounceController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+    _fadeController = AnimationController(
       vsync: this,
+      duration: const Duration(milliseconds: 1000),
     );
-    _bounceAnimation = Tween<double>(begin: 0, end: -12).chain(
-      CurveTween(curve: Curves.elasticOut),
-    ).animate(_bounceController);
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeInOut,
+    );
 
-    // Dots animation
     _dotPulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
 
-    // Swipe-up arrow animation
-    _arrowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
-    _arrowAnimation =
-        Tween<double>(begin: 0, end: -15).animate(CurvedAnimation(
-          parent: _arrowController,
-          curve: Curves.easeInOut,
-        ));
+    _startAutoPageSwitch();
   }
 
   void _startAutoPageSwitch() {
-    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 2), (timer) {
       if (_currentPage < features.length - 1) {
         _goToNextPage();
       } else {
-        _goToCropsPage();
+        _goToNextPageOrDashboard();
       }
     });
   }
 
   void _goToNextPage() {
-    if (_currentPage < features.length - 1) {
-      setState(() {
-        _currentPage++;
-      });
-      _pageController.animateToPage(
-        _currentPage,
-        duration: const Duration(milliseconds: 700),
-        curve: Curves.easeInOut,
-      );
-      _bounceController.forward(from: 0);
-    } else {
-      _goToCropsPage();
-    }
+    setState(() {
+      _fadeController.reset();
+      _fadeController.forward();
+      _currentPage++;
+    });
   }
 
-  void _goToCropsPage() {
+  Future<void> _goToNextPageOrDashboard() async {
     _timer?.cancel();
-    Navigator.pushReplacementNamed(context, "/crops");
+
+    // ✅ Save that features have been seen
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool("seenFeatures", true);
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .get();
+
+      // If crops already selected → go to dashboard
+      if (doc.exists && doc.data()?["selectedCrops"] != null) {
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, "/dashboard");
+        }
+        return;
+      }
+    }
+
+    // Otherwise → go to crops selection
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, "/crops");
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _pageController.dispose();
-    _bounceController.dispose();
+    _fadeController.dispose();
     _dotPulseController.dispose();
-    _arrowController.dispose();
     super.dispose();
   }
 
@@ -122,50 +125,31 @@ class _FeaturesPageState extends State<FeaturesPage>
     return Scaffold(
       body: Stack(
         children: [
-          // Background with parallax
-          PageView.builder(
-            controller: _pageController,
-            itemCount: features.length,
-            onPageChanged: (index) {
-              setState(() {
-                _currentPage = index;
-              });
-              _bounceController.forward(from: 0);
-            },
-            itemBuilder: (context, index) {
-              return AnimatedBuilder(
-                animation: _pageController,
-                builder: (context, child) {
-                  double value = 0.0;
-                  if (_pageController.position.haveDimensions) {
-                    value = index.toDouble() - (_pageController.page ?? 0);
-                    value = (value * 0.3).clamp(-1, 1);
-                  }
-                  return Transform.translate(
-                    offset: Offset(value * 50, 0),
-                    child: child,
-                  );
-                },
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.asset(backgroundImages[index], fit: BoxFit.cover),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.black.withOpacity(0.6), Colors.transparent],
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                        ),
-                      ),
-                    ),
-                  ],
+          // background
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 1000),
+            child: Stack(
+              key: ValueKey(_currentPage),
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  backgroundImages[_currentPage],
+                  fit: BoxFit.cover,
                 ),
-              );
-            },
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.black.withOpacity(0.6), Colors.transparent],
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
 
-          // Welcome text
+          // welcome text
           if (user != null)
             Positioned(
               top: 60,
@@ -180,7 +164,7 @@ class _FeaturesPageState extends State<FeaturesPage>
               ),
             ),
 
-          // Title + desc
+          // feature title + description
           Positioned(
             bottom: 160,
             left: 20,
@@ -188,10 +172,7 @@ class _FeaturesPageState extends State<FeaturesPage>
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 600),
               transitionBuilder: (child, animation) {
-                return ScaleTransition(
-                  scale: animation,
-                  child: FadeTransition(opacity: animation, child: child),
-                );
+                return FadeTransition(opacity: animation, child: child);
               },
               child: Column(
                 key: ValueKey(_currentPage),
@@ -223,9 +204,9 @@ class _FeaturesPageState extends State<FeaturesPage>
             ),
           ),
 
-          // Pulsing dots
+          // dots
           Positioned(
-            bottom: 100,
+            bottom: 70,
             left: 0,
             right: 0,
             child: Row(
@@ -266,76 +247,30 @@ class _FeaturesPageState extends State<FeaturesPage>
             ),
           ),
 
-          // Glowing Next button
-          Positioned(
-            bottom: 45,
-            left: 50,
-            right: 50,
-            child: AnimatedBuilder(
-              animation: _bounceAnimation,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(0, _bounceAnimation.value),
-                  child: child,
-                );
-              },
-              child: GestureDetector(
-                onTap: _goToNextPage,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Colors.green, Colors.lightGreen],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+          // ✅ Small skip button
+          if (_currentPage < features.length - 1)
+            Positioned(
+              bottom: 20,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.black45,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
                     ),
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.greenAccent.withOpacity(0.6),
-                        blurRadius: 12,
-                        spreadRadius: 2,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
                   ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    _currentPage < features.length - 1
-                        ? "Next ➡️"
-                        : "Go to Crops 🚜",
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
-                    ),
+                  onPressed: _goToNextPageOrDashboard,
+                  child: const Text(
+                    "Skip",
+                    style: TextStyle(fontSize: 14),
                   ),
                 ),
               ),
             ),
-          ),
-
-          // Swipe-up arrow
-          Positioned(
-            bottom: 10,
-            left: 0,
-            right: 0,
-            child: AnimatedBuilder(
-              animation: _arrowAnimation,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(0, _arrowAnimation.value),
-                  child: child,
-                );
-              },
-              child: const Icon(
-                Icons.keyboard_arrow_up_rounded,
-                size: 32,
-                color: Colors.white70,
-              ),
-            ),
-          ),
         ],
       ),
     );
