@@ -13,16 +13,25 @@ class MandiPage extends StatefulWidget {
 
 class _MandiPageState extends State<MandiPage> {
   bool isLoading = false;
+  List<dynamic> allRecords = [];
   List<dynamic> mandiPrices = [];
   String? errorMessage;
   String? selectedCrop;
+  String searchQuery = "";
 
-  List<String> availableCrops = []; // ✅ Will load dynamically from API
+  final TextEditingController _searchController = TextEditingController();
+
+  List<String> availableCrops = [];
+
+  static const String apiKey =
+      "579b464db66ec23bdd0000011061a7ea7bc343854d542a2f820ccd4b";
+  static const String endpoint =
+      "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070";
 
   @override
   void initState() {
     super.initState();
-    selectedCrop = widget.crop; // ✅ Set from dashboard if given
+    selectedCrop = widget.crop;
     fetchCropsAndPrices();
   }
 
@@ -33,15 +42,14 @@ class _MandiPageState extends State<MandiPage> {
     });
 
     try {
-      final response = await http.get(Uri.parse(
-          "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070"
-              "?api-key=YOUR_API_KEY&format=json&limit=100"));
+      final response = await http.get(
+        Uri.parse("$endpoint?api-key=$apiKey&format=json&limit=500"),
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        List<dynamic> records = data["records"] ?? [];
+        final records = data["records"] ?? [];
 
-        // ✅ Extract unique crops dynamically
         final cropsSet = records
             .map((item) => (item["commodity"] ?? "").toString())
             .where((c) => c.isNotEmpty)
@@ -50,22 +58,14 @@ class _MandiPageState extends State<MandiPage> {
           ..sort();
 
         setState(() {
+          allRecords = records;
           availableCrops = cropsSet.cast<String>();
 
-          // If no crop selected yet, pick the first one
           if (selectedCrop == null && availableCrops.isNotEmpty) {
             selectedCrop = availableCrops.first;
           }
 
-          // Filter records for selected crop
-          mandiPrices = records
-              .where((item) =>
-              (item["commodity"] ?? "")
-                  .toString()
-                  .toLowerCase()
-                  .contains(selectedCrop?.toLowerCase() ?? ""))
-              .toList();
-
+          filterByCrop();
           isLoading = false;
         });
       } else {
@@ -82,9 +82,33 @@ class _MandiPageState extends State<MandiPage> {
     }
   }
 
+  void filterByCrop() {
+    if (selectedCrop == null || selectedCrop!.isEmpty) {
+      mandiPrices = [];
+      return;
+    }
+
+    mandiPrices = allRecords
+        .where((item) =>
+    (item["commodity"] ?? "").toString().toLowerCase() ==
+        selectedCrop!.toLowerCase())
+        .where((item) {
+      if (searchQuery.isEmpty) return true;
+      return (item["district"] ?? "")
+          .toString()
+          .toLowerCase()
+          .contains(searchQuery.toLowerCase()) ||
+          (item["market"] ?? "")
+              .toString()
+              .toLowerCase()
+              .contains(searchQuery.toLowerCase());
+    })
+        .toList();
+  }
+
   String getFarmerTip() {
     if (selectedCrop != null && selectedCrop!.isNotEmpty) {
-      return "💡 For $selectedCrop, check mandi prices nearby to sell at the best rate.";
+      return "💡 For $selectedCrop, compare mandi prices across districts before selling.";
     }
     return "💡 Compare mandi prices before selling to maximize profit.";
   }
@@ -102,98 +126,137 @@ class _MandiPageState extends State<MandiPage> {
           )
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // 🌾 Crop Selector Dropdown (dynamic)
-            if (availableCrops.isNotEmpty)
-              DropdownButtonFormField<String>(
-                value: selectedCrop,
-                hint: const Text("Select Crop"),
-                items: availableCrops
-                    .map((crop) =>
-                    DropdownMenuItem(value: crop, child: Text(crop)))
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedCrop = value;
-                  });
-                  fetchCropsAndPrices();
-                },
-                decoration: InputDecoration(
-                  labelText: "Choose Crop",
-                  border: OutlineInputBorder(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : errorMessage != null
+          ? Center(child: Text(errorMessage!))
+          : CustomScrollView(
+        slivers: [
+          // 🔝 Sticky Header
+          SliverAppBar(
+            pinned: true,
+            backgroundColor: Colors.white,
+            automaticallyImplyLeading: false,
+            expandedHeight: 120,
+            flexibleSpace: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                children: [
+                  if (availableCrops.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      value: selectedCrop,
+                      hint: const Text("Select Crop"),
+                      items: availableCrops
+                          .map((crop) => DropdownMenuItem(
+                          value: crop, child: Text(crop)))
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedCrop = value;
+                          filterByCrop();
+                        });
+                      },
+                      decoration: InputDecoration(
+                        labelText: "Choose Crop",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText:
+                      "Search in $selectedCrop (district/market)",
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            searchQuery = "";
+                            filterByCrop();
+                          });
+                        },
+                      )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onChanged: (query) {
+                      setState(() {
+                        searchQuery = query;
+                        filterByCrop();
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 📋 Price List
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                final item = mandiPrices[index];
+                return Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
+                  ),
+                  margin: const EdgeInsets.symmetric(
+                      vertical: 8, horizontal: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "${item['commodity'] ?? 'Unknown Crop'}",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text("State: ${item['state'] ?? '-'}"),
+                        Text("District: ${item['district'] ?? '-'}"),
+                        Text("Market: ${item['market'] ?? '-'}"),
+                        Text("Price: ₹${item['modal_price'] ?? '-'}"),
+                      ],
+                    ),
+                  ),
+                );
+              },
+              childCount: mandiPrices.length,
+            ),
+          ),
+
+          // 👨‍🌾 Farmer Tip
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Card(
+                color: Colors.green[100],
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    getFarmerTip(),
+                    style: const TextStyle(fontSize: 16),
                   ),
                 ),
               ),
-            const SizedBox(height: 20),
-
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : errorMessage != null
-                  ? Center(child: Text(errorMessage!))
-                  : mandiPrices.isEmpty
-                  ? const Center(
-                  child: Text("No mandi prices found for this crop."))
-                  : ListView.builder(
-                itemCount: mandiPrices.length,
-                itemBuilder: (context, index) {
-                  final item = mandiPrices[index];
-                  return Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    margin: const EdgeInsets.symmetric(
-                        vertical: 8, horizontal: 4),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "${item['commodity'] ?? 'Unknown Crop'}",
-                            style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          Text("State: ${item['state'] ?? '-'}"),
-                          Text(
-                              "District: ${item['district'] ?? '-'}"),
-                          Text("Market: ${item['market'] ?? '-'}"),
-                          Text(
-                              "Price: ₹${item['modal_price'] ?? '-'}"),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
             ),
-
-            const SizedBox(height: 20),
-
-            // 👨‍🌾 Farmer Tip
-            Card(
-              color: Colors.green[100],
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  getFarmerTip(),
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

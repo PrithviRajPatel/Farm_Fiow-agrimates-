@@ -45,7 +45,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: "Farm Flow",
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.green),
+      theme: ThemeData(
+        useMaterial3: true, // ✅ Modern Material 3
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+      ),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {

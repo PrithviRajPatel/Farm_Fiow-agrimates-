@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'features_page.dart'; // ✅ Import your next page after login
+import 'features_page.dart';
 
 class PhoneLoginPage extends StatefulWidget {
   const PhoneLoginPage({super.key});
@@ -11,10 +11,12 @@ class PhoneLoginPage extends StatefulWidget {
 
 class _PhoneLoginPageState extends State<PhoneLoginPage> {
   final TextEditingController phoneController = TextEditingController();
-  final TextEditingController otpController = TextEditingController(); // ✅ moved here
+  final TextEditingController otpController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String verificationId = "";
+  bool otpSent = false;
+  bool isLoading = false;
 
   Future<void> loginWithPhone() async {
     String phone = phoneController.text.trim();
@@ -26,23 +28,28 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
       return;
     }
 
+    setState(() => isLoading = true);
+
     await _auth.verifyPhoneNumber(
       phoneNumber: phone,
       verificationCompleted: (PhoneAuthCredential credential) async {
         await _auth.signInWithCredential(credential);
-        _goToFeaturesPage(); // ✅ if auto verified, go to next page
+        _goToFeaturesPage();
       },
       verificationFailed: (FirebaseAuthException e) {
+        setState(() => isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: ${e.message}")),
+          SnackBar(content: Text("❌ Error: ${e.message}")),
         );
       },
       codeSent: (String verId, int? resendToken) {
         setState(() {
           verificationId = verId;
+          otpSent = true;
+          isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("OTP sent! ✅")),
+          const SnackBar(content: Text("✅ OTP sent!")),
         );
       },
       codeAutoRetrievalTimeout: (String verId) {
@@ -52,14 +59,16 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
   }
 
   Future<void> verifyOTP(String otp) async {
+    setState(() => isLoading = true);
     try {
       PhoneAuthCredential credential = PhoneAuthProvider.credential(
         verificationId: verificationId,
         smsCode: otp,
       );
       await _auth.signInWithCredential(credential);
-      _goToFeaturesPage(); // ✅ move to FeaturesPage
+      _goToFeaturesPage();
     } catch (e) {
+      setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("❌ Invalid OTP")),
       );
@@ -91,24 +100,34 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
               ),
             ),
             const SizedBox(height: 10),
+
             ElevatedButton(
-              onPressed: loginWithPhone,
-              child: const Text("Send OTP"),
+              onPressed: isLoading ? null : loginWithPhone,
+              child: isLoading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text("Send OTP"),
             ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: otpController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Enter OTP",
-                border: OutlineInputBorder(),
+
+            if (otpSent) ...[
+              const SizedBox(height: 20),
+              TextField(
+                controller: otpController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: "Enter OTP",
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: () => verifyOTP(otpController.text.trim()),
-              child: const Text("Verify OTP"),
-            ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: isLoading
+                    ? null
+                    : () => verifyOTP(otpController.text.trim()),
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Verify OTP"),
+              ),
+            ]
           ],
         ),
       ),
