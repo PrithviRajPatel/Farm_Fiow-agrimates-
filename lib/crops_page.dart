@@ -1,117 +1,266 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class CropsPage extends StatefulWidget {
-  const CropsPage({super.key});
+class CropSelectionPage extends StatefulWidget {
+  const CropSelectionPage({super.key});
 
   @override
-  State<CropsPage> createState() => _CropsPageState();
+  State<CropSelectionPage> createState() => _CropSelectionPageState();
 }
 
-class _CropsPageState extends State<CropsPage> {
-  // List of crop images from assets/images/
-  final List<Map<String, String>> crops = [
-    {"name": "Rice", "image": "assets/images/rice.png"},
-    {"name": "Wheat", "image": "assets/images/wheat.png"},
-    {"name": "Corn", "image": "assets/images/corn.png"},
-    {"name": "Sugarcane", "image": "assets/images/sugarcane.png"},
-    {"name": "Cotton", "image": "assets/images/cotton.png"},
+class _CropSelectionPageState extends State<CropSelectionPage> {
+  String? selectedCrop;
+  bool _isSaving = false;
+
+  final crops = [
+    {"name": "Wheat", "image": "assets/Crops/wheat.png"},
+    {"name": "Rice", "image": "assets/Crops/rice.png"},
+    {"name": "Corn", "image": "assets/Crops/corn.png"},
+    {"name": "Mustard", "image": "assets/Crops/mustard.png"},
+    {"name": "Gram", "image": "assets/Crops/gram.png"},
+    {"name": "Pea", "image": "assets/Crops/pea.png"},
+    {"name": "Oats", "image": "assets/Crops/oats.png"},
+    {"name": "Barley", "image": "assets/Crops/barley.png"},
+    {"name": "Pearl Millet", "image": "assets/Crops/pearl_millet.png"},
+    {"name": "Rye", "image": "assets/Crops/rye.png"},
   ];
 
-  // Track selected crops
-  final Set<String> selectedCrops = {};
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCrop();
+  }
+
+  /// Load previously saved crop
+  Future<void> _loadSavedCrop() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final doc =
+    await FirebaseFirestore.instance.collection("farmers").doc(uid).get();
+    if (doc.exists && doc.data()?["selectedCrop"] != null) {
+      setState(() {
+        selectedCrop = doc["selectedCrop"];
+      });
+    }
+  }
+
+  /// Save crop to Firestore
+  Future<void> saveCropToFirestore(String crop) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await FirebaseFirestore.instance
+        .collection("farmers")
+        .doc(uid)
+        .set({"selectedCrop": crop}, SetOptions(merge: true));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.green.shade50,
       appBar: AppBar(
-        title: Text("Selected: ${selectedCrops.length} crops"),
+        title: const Text("🌾 Select Your Crop"),
+        centerTitle: true,
         backgroundColor: Colors.green,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: GridView.builder(
-          itemCount: crops.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, // two crops per row
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 3 / 4,
-          ),
-          itemBuilder: (context, index) {
-            final crop = crops[index];
-            final isSelected = selectedCrops.contains(crop["name"]);
-
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  if (isSelected) {
-                    selectedCrops.remove(crop["name"]);
-                  } else {
-                    selectedCrops.add(crop["name"]!);
-                  }
-                });
-              },
-              child: Card(
-                elevation: isSelected ? 8 : 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color: isSelected ? Colors.green : Colors.grey.shade300,
-                    width: 2,
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Image.asset(
-                          crop["image"]!,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      crop["name"]!,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.green : Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: selectedCrops.isNotEmpty ? Colors.green : Colors.grey,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      body: Column(
+        children: [
+          const SizedBox(height: 15),
+          const Text(
+            "Choose one crop you are growing",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
             ),
           ),
-          onPressed: selectedCrops.isEmpty
-              ? null
-              : () {
-            // ✅ Navigate to next page (replace /summary with your route)
-            Navigator.pushNamed(context, "/summary", arguments: selectedCrops.toList());
-          },
-          child: Text(
-            selectedCrops.isEmpty
-                ? "Select at least 1 crop"
-                : "Proceed (${selectedCrops.length}) →",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          const SizedBox(height: 10),
+          const Text(
+            "You can skip for now and set later",
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+            ),
           ),
-        ),
+          const SizedBox(height: 20),
+
+          // ✅ GridView with crops
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 18,
+                crossAxisSpacing: 18,
+                childAspectRatio: 0.85,
+              ),
+              itemCount: crops.length,
+              itemBuilder: (context, index) {
+                final crop = crops[index];
+                final isSelected = selectedCrop == crop["name"];
+
+                return GestureDetector(
+                  onTap: _isSaving
+                      ? null
+                      : () {
+                    setState(() {
+                      selectedCrop = crop["name"];
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color:
+                            isSelected ? Colors.green : Colors.transparent,
+                            width: 4,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                            BoxShadow(
+                              color: Colors.green.withOpacity(0.4),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            )
+                          ]
+                              : [],
+                        ),
+                        child: CircleAvatar(
+                          radius: 38,
+                          backgroundImage: AssetImage(crop["image"]!),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        crop["name"]!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? Colors.green.shade800
+                              : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // ✅ Confirm + Skip buttons
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                      selectedCrop == null ? Colors.grey : Colors.green,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 5,
+                    ),
+                    onPressed: selectedCrop == null || _isSaving
+                        ? null
+                        : () async {
+                      setState(() {
+                        _isSaving = true;
+                      });
+
+                      bool saved = false;
+                      int retries = 0;
+
+                      while (!saved && retries < 3) {
+                        try {
+                          await saveCropToFirestore(selectedCrop!);
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    "✅ ${selectedCrop!} saved successfully!"),
+                                backgroundColor: Colors.green,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                            Navigator.pushReplacementNamed(
+                                context, "/home");
+                          }
+                          saved = true;
+                        } catch (e) {
+                          retries++;
+                          if (retries >= 3 && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    "❌ Failed to save crop after multiple attempts."),
+                                backgroundColor: Colors.red,
+                                duration: Duration(seconds: 3),
+                              ),
+                            );
+                          } else {
+                            await Future.delayed(
+                                const Duration(seconds: 2));
+                          }
+                        }
+                      }
+
+                      if (mounted) {
+                        setState(() {
+                          _isSaving = false;
+                        });
+                      }
+                    },
+                    child: _isSaving
+                        ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                        : const Text(
+                      "Confirm",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: _isSaving
+                      ? null
+                      : () {
+                    Navigator.pushReplacementNamed(context, "/home");
+                  },
+                  child: const Text(
+                    "Skip for now",
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.green,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              ],
+            ),
+          )
+        ],
       ),
     );
   }

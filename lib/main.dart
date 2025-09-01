@@ -30,9 +30,9 @@ class FarmFlowApp extends StatelessWidget {
       // ✅ Define routes here ONLY ONCE
       routes: {
         '/login': (context) => const LoginPage(),
-        '/welcome': (context) => const WelcomePage(), // ✅ added
+        '/welcome': (context) => const WelcomePage(),
         '/features': (context) => const FeaturesPage(),
-        '/crops': (context) => const CropsPage(),
+        '/crops': (context) => const CropSelectionPage(),
       },
     );
   }
