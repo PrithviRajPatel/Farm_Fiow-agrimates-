@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "888228300205-36qn7ga005vboo5ob8d6s03vmgbq1aid.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.farm_flow",
+            "certificate_hash": "8fbb2a4075a3cdfa2cbaff75bd3c4da2e35d69aa"
+          }
+        },
+        {
           "client_id": "888228300205-7tg5pjjtpnfaoh5d2bje4473k89jl7u4.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

@@ -23,16 +23,16 @@ class DefaultFirebaseOptions {
     messagingSenderId: "888228300205",
     projectId: "farmflow-cb2d8",
     authDomain: "farmflow-cb2d8.firebaseapp.com",
-    storageBucket: "farmflow-cb2d8.appspot.com", // ✅ fixed
+    storageBucket: "farmflow-cb2d8.appspot.com", // ✅ consistent
     measurementId: "G-F8CETL64DE",
   );
 
-  // ✅ Android Firebase options
+  // ✅ Android Firebase options (merged with correct SHA-1 config)
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: "AIzaSyBJSXxc85oLd_YY9axLqOgbDyL12Iu8ECw",
     appId: "1:888228300205:android:d3905ae3650689c2228d24",
     messagingSenderId: "888228300205",
     projectId: "farmflow-cb2d8",
-    storageBucket: "farmflow-cb2d8.appspot.com", // ✅ fixed
+    storageBucket: "farmflow-cb2d8.appspot.com", // ✅ consistent
   );
 }
