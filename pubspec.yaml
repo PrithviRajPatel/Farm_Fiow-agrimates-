@@ -44,6 +44,9 @@ dependencies:
   # ✅ HTTP requests
   http: ^1.2.2
 
+  # ✅ File picker (moved to dependencies)
+  file_picker: ^10.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -59,9 +62,6 @@ flutter:
     - assets/images/
     - assets/Crops/
     - assets/Icon/
-    - assets/Icon/weather.png
-    - assets/Icon/Market.png
-    - assets/Icon/Soil.png
 
 # ✅ Launcher icon setup
 flutter_launcher_icons:

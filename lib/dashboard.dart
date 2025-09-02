@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'weather_page.dart';
 import 'mandi_page.dart';
 import 'npk_page.dart';
+import 'crops_page.dart'; // ✅ Import CropSelectionPage
 
 class DashboardPage extends StatelessWidget {
-  final String? crop; // ✅ add crop field
+  final String? crop;
 
-  const DashboardPage({super.key, this.crop}); // ✅ updated constructor
+  const DashboardPage({super.key, this.crop});
 
   @override
   Widget build(BuildContext context) {
@@ -14,38 +15,57 @@ class DashboardPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(crop != null ? "Dashboard - $crop" : "Dashboard"),
         backgroundColor: Colors.green,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+          onPressed: () {
+            // ✅ Always go back to crop selection page
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const CropSelectionPage()),
+            );
+          },
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: GridView.count(
-          crossAxisCount: 2,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 1,
-          children: [
-            _buildDashboardCard(
-              context,
-              title: "Weather",
-              icon: Icons.cloud,
-              color: Colors.blue,
-              page: const WeatherPage(),
-            ),
-            _buildDashboardCard(
-              context,
-              title: "Mandi Price",
-              icon: Icons.shopping_cart,
-              color: Colors.orange,
-              // ✅ pass crop forward if you want filtering in MandiPage
-              page: MandiPage(crop: crop),
-            ),
-            _buildDashboardCard(
-              context,
-              title: "NPK Detection",
-              icon: Icons.science,
-              color: Colors.purple,
-              page: NpkPage(), // No const because it’s StatefulWidget
-            ),
-          ],
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 1,
+          ),
+          itemCount: 3,
+          itemBuilder: (context, index) {
+            switch (index) {
+              case 0:
+                return _buildDashboardCard(
+                  context,
+                  title: "Weather",
+                  icon: Icons.cloud,
+                  color: Colors.blue,
+                  page: const WeatherPage(),
+                );
+              case 1:
+                return _buildDashboardCard(
+                  context,
+                  title: "Mandi Price",
+                  icon: Icons.shopping_cart,
+                  color: Colors.orange,
+                  page: MandiPage(crop: crop),
+                );
+              case 2:
+                return _buildDashboardCard(
+                  context,
+                  title: "NPK Detection",
+                  icon: Icons.science,
+                  color: Colors.purple,
+                  page: NpkPage(),
+                );
+              default:
+                return const SizedBox.shrink();
+            }
+          },
         ),
       ),
     );
@@ -58,16 +78,17 @@ class DashboardPage extends StatelessWidget {
         required Color color,
         required Widget page,
       }) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => page),
-        );
-      },
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Material(
+      borderRadius: BorderRadius.circular(16),
+      elevation: 4,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => page),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
