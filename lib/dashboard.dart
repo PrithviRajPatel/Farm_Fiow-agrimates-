@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'weather_page.dart';
 import 'mandi_page.dart';
 import 'npk_page.dart';
-import 'crops_page.dart'; // ✅ Import CropSelectionPage
+import 'crops_page.dart';
+import 'irrigation_page.dart';
 
 class DashboardPage extends StatelessWidget {
   final String? crop;
@@ -18,7 +19,6 @@ class DashboardPage extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
           onPressed: () {
-            // ✅ Always go back to crop selection page
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const CropSelectionPage()),
@@ -35,7 +35,7 @@ class DashboardPage extends StatelessWidget {
             crossAxisSpacing: 16,
             childAspectRatio: 1,
           ),
-          itemCount: 3,
+          itemCount: 4,
           itemBuilder: (context, index) {
             switch (index) {
               case 0:
@@ -44,7 +44,7 @@ class DashboardPage extends StatelessWidget {
                   title: "Weather",
                   icon: Icons.cloud,
                   color: Colors.blue,
-                  page: WeatherPage(),
+                  page: const WeatherPage(),
                 );
               case 1:
                 return _buildDashboardCard(
@@ -61,6 +61,14 @@ class DashboardPage extends StatelessWidget {
                   icon: Icons.science,
                   color: Colors.purple,
                   page: NpkPage(),
+                );
+              case 3:
+                return _buildDashboardCard(
+                  context,
+                  title: "Irrigation & Pesticide Scheduling",
+                  icon: Icons.water_drop,
+                  color: Colors.teal,
+                  page: const IrrigationPage(),
                 );
               default:
                 return const SizedBox.shrink();
