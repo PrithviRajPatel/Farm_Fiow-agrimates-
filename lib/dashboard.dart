@@ -44,7 +44,7 @@ class DashboardPage extends StatelessWidget {
                   title: "Weather",
                   icon: Icons.cloud,
                   color: Colors.blue,
-                  page: const WeatherPage(),
+                  page: WeatherPage(),
                 );
               case 1:
                 return _buildDashboardCard(
