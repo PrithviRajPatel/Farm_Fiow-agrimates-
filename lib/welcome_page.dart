@@ -45,7 +45,7 @@ class WelcomePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
                       const Text(
-                        "Welcome to Farm Flow!",
+                        "👋 Welcome to Farm Flow!",
                         style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
