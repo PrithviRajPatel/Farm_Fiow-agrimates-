@@ -13,11 +13,9 @@ class FeaturesPage extends StatefulWidget {
 
 class _FeaturesPageState extends State<FeaturesPage>
     with TickerProviderStateMixin {
+  final PageController _pageController = PageController();
   int _currentPage = 0;
   Timer? _timer;
-
-  late AnimationController _fadeController;
-  late Animation<double> _fadeAnimation;
 
   late AnimationController _dotPulseController;
 
@@ -44,46 +42,30 @@ class _FeaturesPageState extends State<FeaturesPage>
   @override
   void initState() {
     super.initState();
-
-    _fadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeInOut,
-    );
-
     _dotPulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
 
-    _startAutoPageSwitch();
+    _startAutoSwipe();
   }
 
-  void _startAutoPageSwitch() {
-    _timer = Timer.periodic(const Duration(seconds: 2), (timer) {
+  void _startAutoSwipe() {
+    _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (_currentPage < features.length - 1) {
-        _goToNextPage();
+        _pageController.nextPage(
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOut,
+        );
       } else {
         _goToNextPageOrDashboard();
       }
     });
   }
 
-  void _goToNextPage() {
-    setState(() {
-      _fadeController.reset();
-      _fadeController.forward();
-      _currentPage++;
-    });
-  }
-
   Future<void> _goToNextPageOrDashboard() async {
     _timer?.cancel();
 
-    // ✅ Save that features have been seen
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool("seenFeatures", true);
 
@@ -95,16 +77,17 @@ class _FeaturesPageState extends State<FeaturesPage>
           .doc(user.uid)
           .get();
 
-      // If crops already selected → go to dashboard
-      if (doc.exists && doc.data()?["selectedCrops"] != null) {
+      final crop = doc.data()?["selectedCrops"];
+
+      if (crop != null) {
+        await prefs.setString("selectedCrop", crop.toString());
         if (mounted) {
-          Navigator.pushReplacementNamed(context, "/dashboard");
+          Navigator.pushReplacementNamed(context, "/dashboard", arguments: {"crop": crop});
         }
         return;
       }
     }
 
-    // Otherwise → go to crops selection
     if (mounted) {
       Navigator.pushReplacementNamed(context, "/crops");
     }
@@ -113,7 +96,7 @@ class _FeaturesPageState extends State<FeaturesPage>
   @override
   void dispose() {
     _timer?.cancel();
-    _fadeController.dispose();
+    _pageController.dispose();
     _dotPulseController.dispose();
     super.dispose();
   }
@@ -125,86 +108,79 @@ class _FeaturesPageState extends State<FeaturesPage>
     return Scaffold(
       body: Stack(
         children: [
-          // background
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 1000),
-            child: Stack(
-              key: ValueKey(_currentPage),
-              fit: StackFit.expand,
-              children: [
-                Image.asset(
-                  backgroundImages[_currentPage],
-                  fit: BoxFit.cover,
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.black.withOpacity(0.6), Colors.transparent],
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // welcome text
-          if (user != null)
-            Positioned(
-              top: 60,
-              left: 20,
-              child: Text(
-                "Namaste, ${user.displayName ?? "Farmer"}",
-                style: const TextStyle(
-                  fontSize: 20,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-
-          // feature title + description
-          Positioned(
-            bottom: 160,
-            left: 20,
-            right: 20,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 600),
-              transitionBuilder: (child, animation) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-              child: Column(
-                key: ValueKey(_currentPage),
+          // ✅ PageView for manual + auto swipe
+          PageView.builder(
+            controller: _pageController,
+            itemCount: features.length,
+            onPageChanged: (index) {
+              setState(() => _currentPage = index);
+            },
+            itemBuilder: (context, index) {
+              return Stack(
+                fit: StackFit.expand,
                 children: [
-                  Text(
-                    features[_currentPage]["title"]!,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          blurRadius: 8,
-                          color: Colors.black54,
-                          offset: Offset(2, 2),
-                        ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
+                  Image.asset(
+                    backgroundImages[index],
+                    fit: BoxFit.cover,
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    features[_currentPage]["desc"]!,
-                    style: const TextStyle(fontSize: 16, color: Colors.white70),
-                    textAlign: TextAlign.center,
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.black.withOpacity(0.6), Colors.transparent],
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                      ),
+                    ),
+                  ),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (user != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 20),
+                          child: Text(
+                            "Namaste, ${user.displayName ?? "Farmer"}",
+                            style: const TextStyle(
+                              fontSize: 20,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      Text(
+                        features[index]["title"]!,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 8,
+                              color: Colors.black54,
+                              offset: Offset(2, 2),
+                            ),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          features[index]["desc"]!,
+                          style: const TextStyle(fontSize: 16, color: Colors.white70),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 100),
+                    ],
                   ),
                 ],
-              ),
-            ),
+              );
+            },
           ),
 
-          // dots
+          // ✅ Dots Indicator
           Positioned(
             bottom: 70,
             left: 0,
@@ -247,7 +223,7 @@ class _FeaturesPageState extends State<FeaturesPage>
             ),
           ),
 
-          // ✅ Small skip button
+          // ✅ Skip button
           if (_currentPage < features.length - 1)
             Positioned(
               bottom: 20,

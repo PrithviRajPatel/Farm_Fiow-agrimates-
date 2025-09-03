@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'login_page.dart';
+import 'welcome_page.dart';
 import 'features_page.dart';
 import 'crops_page.dart';
 import 'dashboard.dart';
@@ -20,16 +21,31 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  /// ✅ Decide the next page based on auth + preferences
   Future<Widget> _getNextPage(User? user) async {
     if (user == null) return const LoginPage();
 
     final prefs = await SharedPreferences.getInstance();
+    final seenWelcome = prefs.getBool("seenWelcome") ?? false;
     final seenFeatures = prefs.getBool("seenFeatures") ?? false;
     final selectedCrop = prefs.getString("selectedCrop");
 
-    if (!seenFeatures) return const FeaturesPage();
-    if (selectedCrop == null) return const CropSelectionPage();
+    // Step 1 → Welcome
+    if (!seenWelcome) {
+      return const WelcomePage();
+    }
 
+    // Step 2 → Features
+    if (!seenFeatures) {
+      return const FeaturesPage();
+    }
+
+    // Step 3 → Crop selection
+    if (selectedCrop == null || selectedCrop.isEmpty) {
+      return const CropSelectionPage();
+    }
+
+    // Step 4 → Dashboard
     return DashboardPage(crop: selectedCrop);
   }
 
@@ -66,6 +82,7 @@ class MyApp extends StatelessWidget {
       ),
       routes: {
         "/login": (context) => const LoginPage(),
+        "/welcome": (context) => const WelcomePage(),
         "/features": (context) => const FeaturesPage(),
         "/crops": (context) => const CropSelectionPage(),
         "/dashboard": (context) {
@@ -84,7 +101,17 @@ class LoadingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+      backgroundColor: Colors.green,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.agriculture, size: 80, color: Colors.white),
+            SizedBox(height: 20),
+            CircularProgressIndicator(color: Colors.white),
+          ],
+        ),
+      ),
     );
   }
 }
