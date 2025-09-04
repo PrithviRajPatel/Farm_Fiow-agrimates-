@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ Firestore for storing user data
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -28,7 +28,6 @@ class _LoginPageState extends State<LoginPage> {
   Future<UserCredential?> _signInWithGoogle() async {
     try {
       setState(() => _loading = true);
-
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) return null;
 
@@ -44,7 +43,6 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         Navigator.pushReplacementNamed(context, "/welcome");
       }
-
       return userCred;
     } catch (e) {
       _showError("Google login failed: $e");
@@ -58,7 +56,6 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _loginWithEmailPassword() async {
     try {
       setState(() => _loading = true);
-
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
@@ -113,7 +110,6 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               const SizedBox(height: 20),
               Image.asset("assets/images/logo.png", height: 100),
-
               const SizedBox(height: 30),
               const Text(
                 "Welcome Back",
@@ -125,7 +121,6 @@ class _LoginPageState extends State<LoginPage> {
                 "Login to continue",
                 style: TextStyle(fontSize: 14, color: Colors.black54),
               ),
-
               const SizedBox(height: 30),
 
               // ✅ Email
@@ -213,15 +208,15 @@ class _LoginPageState extends State<LoginPage> {
               const Row(
                 children: [
                   Expanded(
-                      child:
-                      Divider(thickness: 1, color: Colors.black26)),
+                      child: Divider(
+                          thickness: 1, color: Colors.black26)),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 8),
                     child: Text("OR"),
                   ),
                   Expanded(
-                      child:
-                      Divider(thickness: 1, color: Colors.black26)),
+                      child: Divider(
+                          thickness: 1, color: Colors.black26)),
                 ],
               ),
 
@@ -251,7 +246,7 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 15),
 
-              // ✅ Phone Login
+              // ✅ Phone Login → Go to OTP Page
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -263,15 +258,11 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PhoneLoginPage()),
-                    );
+                    Navigator.pushNamed(context, "/otp");
                   },
                   child: const Text("Sign in with Phone Number",
-                      style:
-                      TextStyle(fontSize: 18, color: Colors.white)),
+                      style: TextStyle(
+                          fontSize: 18, color: Colors.white)),
                 ),
               ),
 
@@ -305,7 +296,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-// ✅ Sign Up Page with Name + Phone
+// ✅ Sign Up Page
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
 
@@ -326,14 +317,12 @@ class _SignUpPageState extends State<SignUpPage> {
     try {
       setState(() => _loading = true);
 
-      // ✅ Create user in Firebase Auth
       UserCredential userCred =
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
 
-      // ✅ Save additional data in Firestore
       await FirebaseFirestore.instance
           .collection("users")
           .doc(userCred.user!.uid)
@@ -422,19 +411,6 @@ class _SignUpPageState extends State<SignUpPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-// ✅ Placeholder PhoneLoginPage
-class PhoneLoginPage extends StatelessWidget {
-  const PhoneLoginPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Phone Login")),
-      body: const Center(child: Text("Phone OTP login will go here")),
     );
   }
 }

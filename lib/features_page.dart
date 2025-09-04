@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'welcome_page.dart'; // ✅ Import WelcomePage
 
 class FeaturesPage extends StatefulWidget {
   const FeaturesPage({super.key});
@@ -82,7 +83,8 @@ class _FeaturesPageState extends State<FeaturesPage>
       if (crop != null) {
         await prefs.setString("selectedCrop", crop.toString());
         if (mounted) {
-          Navigator.pushReplacementNamed(context, "/dashboard", arguments: {"crop": crop});
+          Navigator.pushReplacementNamed(context, "/dashboard",
+              arguments: {"crop": crop});
         }
         return;
       }
@@ -106,6 +108,21 @@ class _FeaturesPageState extends State<FeaturesPage>
     final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.green, size: 28),
+          onPressed: () {
+            // ✅ Always go back to WelcomePage
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const WelcomePage()),
+            );
+          },
+        ),
+      ),
+      extendBodyBehindAppBar: true,
       body: Stack(
         children: [
           // ✅ PageView for manual + auto swipe
@@ -126,7 +143,10 @@ class _FeaturesPageState extends State<FeaturesPage>
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.black.withOpacity(0.6), Colors.transparent],
+                        colors: [
+                          Colors.black.withOpacity(0.6),
+                          Colors.transparent
+                        ],
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
                       ),
@@ -168,7 +188,8 @@ class _FeaturesPageState extends State<FeaturesPage>
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Text(
                           features[index]["desc"]!,
-                          style: const TextStyle(fontSize: 16, color: Colors.white70),
+                          style: const TextStyle(
+                              fontSize: 16, color: Colors.white70),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -232,7 +253,8 @@ class _FeaturesPageState extends State<FeaturesPage>
               child: Center(
                 child: TextButton(
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 8),
                     foregroundColor: Colors.white,
                     backgroundColor: Colors.black45,
                     shape: RoundedRectangleBorder(

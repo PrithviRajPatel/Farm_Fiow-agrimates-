@@ -9,6 +9,7 @@ import 'features_page.dart';
 import 'crops_page.dart';
 import 'dashboard.dart';
 import 'firebase_options.dart';
+import 'Otplogin.dart'; // ✅ Import OTP login screen
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,23 +31,14 @@ class MyApp extends StatelessWidget {
     final seenFeatures = prefs.getBool("seenFeatures") ?? false;
     final selectedCrop = prefs.getString("selectedCrop");
 
-    // Step 1 → Welcome
-    if (!seenWelcome) {
-      return const WelcomePage();
-    }
-
-    // Step 2 → Features
-    if (!seenFeatures) {
-      return const FeaturesPage();
-    }
-
-    // Step 3 → Crop selection
+    if (!seenWelcome) return const WelcomePage();
+    if (!seenFeatures) return const FeaturesPage();
     if (selectedCrop == null || selectedCrop.isEmpty) {
       return const CropSelectionPage();
     }
 
-    // Step 4 → Dashboard
-    return DashboardPage(crop: selectedCrop);
+    // ✅ Wrap single crop in a list
+    return DashboardPage(crops: [selectedCrop]);
   }
 
   @override
@@ -89,8 +81,13 @@ class MyApp extends StatelessWidget {
           final args = ModalRoute.of(context)!.settings.arguments as Map?;
           final crop = args?["crop"];
           if (crop == null) return const CropSelectionPage();
-          return DashboardPage(crop: crop);
+
+          // ✅ Always wrap crop into a list
+          return DashboardPage(crops: [crop]);
         },
+
+        // ✅ OTP route
+        "/otp": (context) => const PhoneLoginPage(),
       },
     );
   }
@@ -98,6 +95,7 @@ class MyApp extends StatelessWidget {
 
 class LoadingScreen extends StatelessWidget {
   const LoadingScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
