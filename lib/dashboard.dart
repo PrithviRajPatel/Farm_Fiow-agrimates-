@@ -1,284 +1,393 @@
+import 'package:farm_flow/ai_assistant_page.dart';
+import 'package:farm_flow/ai_recommendations_page.dart';
+import 'package:farm_flow/market_rates_page.dart';
+import 'package:farm_flow/plant_health_page.dart';
+import 'package:farm_flow/sensors_page.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-
-import 'weather_page.dart';
-import 'mandi_page.dart';
-import 'npk_page.dart';
-import 'irrigation_page.dart';
 
 class DashboardPage extends StatefulWidget {
-  final List<String> crops;
-  const DashboardPage({super.key, required this.crops});
+  const DashboardPage({super.key});
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  late String activeCrop;
+  int _selectedIndex = 0;
 
-  // 🔹 Features list
-  late List<Map<String, dynamic>> features;
+  final List<Widget> _pages = [
+    const HomePage(),
+    const SensorsPage(),
+    const WeatherPage(),
+    const AIRecommendationsPage(),
+    const PlantHealthPage(),
+    const AIAssistantPage(),
+    const MarketRatesPage(),
+    const ControlsPage(),
+    const SettingsPage(),
+  ];
 
-  @override
-  void initState() {
-    super.initState();
-    // default → first crop from list
-    activeCrop = widget.crops.isNotEmpty ? widget.crops.first : "Unknown";
-
-    _buildFeatures();
-  }
-
-  void _buildFeatures() {
-    features = [
-      {
-        "icon": Icons.cloud,
-        "label": "Weather",
-        "page": const WeatherPage(),
-      },
-      {
-        "icon": Icons.shopping_cart,
-        "label": "Mandi Price",
-        "page": MandiPage(crop: activeCrop), // ✅ pass active crop
-      },
-      {
-        "icon": Icons.science,
-        "label": "NPK Detection",
-        "page": NpkPage(),
-      },
-      {
-        "icon": Icons.water_drop,
-        "label": "Irrigation & Pesticide",
-        "page": const IrrigationPage(),
-      },
-    ];
-  }
-
-  // 🔹 Drawer item builder
-  Widget _buildDrawerItem(
-      IconData icon, String label, Color color, VoidCallback onTap) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: color.withOpacity(0.2),
-        child: Icon(icon, color: color),
-      ),
-      title: Text(label,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-      onTap: onTap,
-    );
-  }
-
-  // 🔹 Reset crop selection
-  Future<void> _changeCrop() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove("selectedCrops");
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, "/crops");
-    }
-  }
-
-  // 🔹 Switch between selected crops
-  void _switchCrop(String crop) {
-    setState(() {
-      activeCrop = crop;
-      _buildFeatures(); // rebuild features with updated crop
-    });
-    Navigator.pop(context); // close drawer
-  }
+  final List<String> _pageTitles = [
+    'Dashboard',
+    'Sensors',
+    'Weather',
+    'AI Recommendations',
+    'Plant Health',
+    'AI Assistant',
+    'Market Rates',
+    'Controls',
+    'Settings',
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Dashboard - $activeCrop"),
+        title: Text(_pageTitles[_selectedIndex]),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.pushNamed(context, "/settings"),
+            icon: const Icon(Icons.notifications),
+            onPressed: () {},
           ),
         ],
       ),
       drawer: Drawer(
-        child: Column(
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
-            // 🔹 Drawer Header
-            DrawerHeader(
-              margin: EdgeInsets.zero,
-              padding: EdgeInsets.zero,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.green, Colors.teal],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+            const DrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.green,
               ),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                alignment: Alignment.bottomLeft,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.dashboard,
-                          color: Colors.white, size: 26),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        "Dashboard - $activeCrop",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+              child: Text(
+                'AgriMates',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
                 ),
               ),
             ),
-
-            // 🔹 List of crops (switchable)
-            if (widget.crops.isNotEmpty)
-              Expanded(
-                flex: 0,
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("🌱 Your Crops",
-                            style: TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w600)),
-                        ...widget.crops.map((crop) {
-                          return ListTile(
-                            leading: Icon(Icons.eco,
-                                color: crop == activeCrop
-                                    ? Colors.green
-                                    : Colors.grey),
-                            title: Text(crop),
-                            trailing: crop == activeCrop
-                                ? const Icon(Icons.check, color: Colors.green)
-                                : null,
-                            onTap: () => _switchCrop(crop),
-                          );
-                        }).toList(),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-            const Divider(),
-
-            // 🔹 Drawer Items
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _buildDrawerItem(Icons.cloud, "Weather", Colors.blue, () {
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const WeatherPage()));
-                  }),
-                  _buildDrawerItem(Icons.shopping_cart, "Mandi Price",
-                      Colors.orange, () {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => MandiPage(crop: activeCrop)));
-                      }),
-                  _buildDrawerItem(Icons.science, "NPK Detection",
-                      Colors.purple, () {
-                        Navigator.push(context,
-                            MaterialPageRoute(builder: (context) => NpkPage()));
-                      }),
-                  _buildDrawerItem(Icons.water_drop, "Irrigation & Pesticide",
-                      Colors.teal, () {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const IrrigationPage()));
-                      }),
-                  const Divider(),
-                  _buildDrawerItem(Icons.agriculture, "Change Crops",
-                      Colors.green, _changeCrop),
-                  _buildDrawerItem(Icons.settings, "Settings", Colors.grey, () {
-                    Navigator.pushNamed(context, "/settings");
-                  }),
-                  _buildDrawerItem(Icons.logout, "Logout", Colors.red, () async {
-                    await _auth.signOut();
-                    if (mounted) {
-                      Navigator.pushReplacementNamed(context, "/login");
-                    }
-                  }),
-                ],
-              ),
+            ListTile(
+              leading: const Icon(Icons.dashboard),
+              title: const Text('Dashboard'),
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 0;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.sensors),
+              title: const Text('Sensors'),
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 1;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.wb_sunny),
+              title: const Text('Weather'),
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 2;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.lightbulb),
+              title: const Text('AI Recommendations'),
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 3;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_florist),
+              title: const Text('Plant Health'),
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 4;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.assistant),
+              title: const Text('AI Assistant'),
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 5;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.show_chart),
+              title: const Text('Market Rates'),
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 6;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_remote),
+              title: const Text('Controls'),
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 7;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Settings'),
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 8;
+                });
+                Navigator.pop(context);
+              },
             ),
           ],
         ),
       ),
+      body: _pages[_selectedIndex],
+    );
+  }
+}
 
-      // 🔹 Dashboard Grid
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 1,
-          ),
-          itemCount: features.length,
-          itemBuilder: (context, index) {
-            final feature = features[index];
-            return Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 3,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => feature["page"]),
-                  );
-                },
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: Colors.green.withOpacity(0.1),
-                      radius: 32,
-                      child: Icon(feature["icon"],
-                          size: 32, color: Colors.green),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      feature["label"],
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w600),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Welcome to AgriMates',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your intelligent farming companion is monitoring your crops 24/7',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildStatCard('Soil Moisture', '28%', '+5%'),
+                _buildStatCard('Temperature', '32°C', '-2%'),
+                _buildStatCard('NPK Levels', '45%', '+8%'),
+                _buildStatCard('Power Level', '87%', '0%'),
+              ],
+            ),
+            const SizedBox(height: 24),
+            _buildWeatherCard(),
+            const SizedBox(height: 24),
+            _buildSmartIrrigationCard(),
+            const SizedBox(height: 24),
+            _buildAIRecommendationsCard(),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildStatCard(String title, String value, String change) {
+    return Expanded(
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Text(title),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style:
+                    const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(change),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeatherCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'ISRO Weather Data',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Column(
+                  children: [
+                    Text('33°C',
+                        style: TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.bold)),
+                    Text('Temperature'),
+                  ],
+                ),
+                const Column(
+                  children: [
+                    Text('60%',
+                        style: TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.bold)),
+                    Text('Rain Chance'),
+                  ],
+                ),
+                Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.water_drop),
+                        const Text('80%'),
+                      ],
+                    ),
+                    const Text('Humidity'),
+                  ],
+                ),
+                Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.air),
+                        const Text('9km/h'),
+                      ],
+                    ),
+                    const Text('Wind'),
+                  ],
+                ),
+                Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.wb_sunny),
+                        const Text('3'),
+                      ],
+                    ),
+                    const Text('UV Index'),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text('Rain expected - Irrigation automatically paused'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmartIrrigationCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Smart Irrigation',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Column(
+                  children: [
+                    Text('Next Run'),
+                    Text('Duration'),
+                  ],
+                ),
+                ElevatedButton(
+                  onPressed: () {},
+                  child: const Text('Start Now'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAIRecommendationsCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'AI Recommendations',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text('NPK Deficiency Detected in Field B'),
+            const SizedBox(height: 8),
+            const Text(
+                'Low nitrogen levels detected in Field B. Soil analysis shows N-P-K ratio of 45-65-70. Recommend applying 25kg Urea per acre within next 3 days for optimal crop growth.'),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () {},
+              child: const Text('View Details'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class WeatherPage extends StatelessWidget {
+  const WeatherPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('Weather Page'));
+  }
+}
+
+class ControlsPage extends StatelessWidget {
+  const ControlsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('Controls Page'));
+  }
+}
+
+class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('Settings Page'));
   }
 }
