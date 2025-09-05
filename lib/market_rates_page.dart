@@ -1,101 +1,136 @@
-import 'package:flutter/material.dart';
 
-class MarketRatesPage extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:google_generative_ai/google_generative_ai.dart';
+
+class MarketRatesPage extends StatefulWidget {
   const MarketRatesPage({super.key});
+
+  @override
+  State<MarketRatesPage> createState() => _MarketRatesPageState();
+}
+
+class _MarketRatesPageState extends State<MarketRatesPage> {
+  // TODO: Add your data.gov.in API key here
+  final String _marketApiKey = '579b464db66ec23bdd000001b7f15aa82e92493d4ab203dbbc7b2af1';
+  // TODO: Add your Gemini API key here
+  final String _geminiApiKey = 'AIzaSyC-a3CqW2S9j2lLuL6ffFPtT5ayvIE1Ygs';
+
+  String _selectedState = 'Punjab';
+  String _selectedMarket = '';
+  List<dynamic> _markets = [];
+  List<dynamic> _commodities = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  String _aiAdvice = 'Loading advice...';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMarkets();
+  }
+
+  Future<void> _fetchMarkets() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await http.get(Uri.parse(
+          'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?api-key=$_marketApiKey&format=json&filters[state]=$_selectedState'));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _markets = data['records'].map((record) => record['market']).toSet().toList();
+          if (_markets.isNotEmpty) {
+            _selectedMarket = _markets[0];
+            _fetchCommodities();
+          }
+        });
+      } else {
+        throw Exception('Failed to load markets');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _fetchCommodities() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await http.get(Uri.parse(
+          'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?api-key=$_marketApiKey&format=json&filters[state]=$_selectedState&filters[market]=$_selectedMarket'));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _commodities = data['records'];
+          _isLoading = false;
+        });
+        _fetchAiAdvice();
+      } else {
+        throw Exception('Failed to load commodities');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _fetchAiAdvice() async {
+    final model = GenerativeModel(model: 'gemini-pro', apiKey: _geminiApiKey);
+    final prompt =
+        'Given the current market prices in $_selectedMarket, $_selectedState, what are your trading recommendations for the following commodities: ${_commodities.map((c) => c['commodity']).join(', ')}?';
+    try {
+      final content = [Content.text(prompt)];
+      final response = await model.generateContent(content);
+      setState(() {
+        _aiAdvice = response.text ?? 'No advice generated.';
+      });
+    } catch (e) {
+      setState(() {
+        _aiAdvice = 'Failed to get AI advice.';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('MarketRates', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text('Real-time farming intelligence', style: TextStyle(fontSize: 12)),
-          ],
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.agriculture),
-            label: const Text('Agribot AI'),
-            style: TextButton.styleFrom(foregroundColor: Colors.black),
-          ),
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.language),
-            label: const Text('us English'),
-            style: TextButton.styleFrom(foregroundColor: Colors.black),
-          ),
-        ],
+        title: const Text('Market Rates'),
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildLiveMarketRatesCard(),
-              const SizedBox(height: 24),
-              _buildMarketSelectionCard(),
-              const SizedBox(height: 24),
-              _buildMarketRatesSection(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLiveMarketRatesCard() {
-    return Card(
-      color: Colors.green.shade400,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Live Market Rates',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        'Real-time crop prices from agricultural markets across India',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                    ],
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(child: Text('Error: $_errorMessage'))
+              : SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildMarketSelectionCard(),
+                        const SizedBox(height: 24),
+                        _buildMarketRatesSection(),
+                        const SizedBox(height: 24),
+                        _buildAiTraderCard(),
+                      ],
+                    ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.refresh, color: Colors.white),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                MarketStat(label: 'Last Updated', value: '2:37:08 AM'),
-                MarketStat(label: 'Market Status', value: 'active'),
-                MarketStat(label: 'Total Arrivals', value: '0 qtl'),
-                MarketStat(label: 'Active Traders', value: '0'),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -111,48 +146,34 @@ class MarketRatesPage extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Select Major Mandi'),
-                      DropdownButtonFormField<String>(
-                        value: 'Moga (Punjab)',
-                        items: ['Moga (Punjab)']
-                            .map((label) => DropdownMenuItem(
-                                  value: label,
-                                  child: Text(label),
-                                ))
-                            .toList(),
-                        onChanged: (value) {},
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Or Enter Custom Location'),
-                      TextFormField(
-                        decoration: const InputDecoration(
-                          hintText: 'Enter city/district name',
-                          suffixIcon: Icon(Icons.search),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            DropdownButtonFormField<String>(
+              value: _selectedState,
+              items: ['Punjab', 'Haryana', 'Uttar Pradesh', 'Maharashtra'] // Add more states as needed
+                  .map((label) => DropdownMenuItem(value: label, child: Text(label)))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _selectedState = value;
+                    _fetchMarkets();
+                  });
+                }
+              },
             ),
             const SizedBox(height: 16),
-            const Text('Search Crops'),
-            TextFormField(
-              decoration: const InputDecoration(hintText: 'Search for specific crops...'),
-            ),
+            if (_markets.isNotEmpty)
+              DropdownButtonFormField<String>(
+                value: _selectedMarket,
+                items: _markets.map((market) => DropdownMenuItem(value: market, child: Text(market))).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedMarket = value;
+                      _fetchCommodities();
+                    });
+                  }
+                },
+              ),
           ],
         ),
       ),
@@ -163,43 +184,53 @@ class MarketRatesPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Market Rates - Moga Agricultural Market',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Text(
+          'Market Rates - $_selectedMarket, $_selectedState',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        const Text('22 crops listed'),
         const SizedBox(height: 16),
-        GridView.count(
-          crossAxisCount: 2,
+        GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 0.75,
+          ),
+          itemCount: _commodities.length,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          children: const [
-            CropCard(name: 'Wheat', price: '2,430', minPrice: '2,425', maxPrice: '2,435'),
-            CropCard(name: 'Paddy (Dhan)', price: '0', minPrice: '0', maxPrice: '0'),
-            CropCard(name: 'Cotton', price: '0', minPrice: '0', maxPrice: '0'),
-            CropCard(name: 'Maize', price: '0', minPrice: '0', maxPrice: '0'),
-          ],
+          itemBuilder: (context, index) {
+            final commodity = _commodities[index];
+            return CropCard(
+              name: commodity['commodity'] ?? 'N/A',
+              price: (commodity['modal_price'] ?? 0).toString(),
+              minPrice: (commodity['min_price'] ?? 0).toString(),
+              maxPrice: (commodity['max_price'] ?? 0).toString(),
+              arrivalDate: commodity['arrival_date'] ?? 'N/A',
+            );
+          },
         ),
       ],
     );
   }
-}
 
-class MarketStat extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const MarketStat({super.key, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(color: Colors.white70)),
-      ],
+  Widget _buildAiTraderCard() {
+    return Card(
+      color: Colors.indigo.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'AI Trader Advice',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo),
+            ),
+            const SizedBox(height: 16),
+            Text(_aiAdvice),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -209,6 +240,7 @@ class CropCard extends StatelessWidget {
   final String price;
   final String minPrice;
   final String maxPrice;
+  final String arrivalDate;
 
   const CropCard({
     super.key,
@@ -216,6 +248,7 @@ class CropCard extends StatelessWidget {
     required this.price,
     required this.minPrice,
     required this.maxPrice,
+    required this.arrivalDate,
   });
 
   @override
@@ -225,10 +258,10 @@ class CropCard extends StatelessWidget {
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const Text('Price per Quintal'),
+            Text(name, style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            Text('Arrival: $arrivalDate', style: const TextStyle(fontSize: 12)),
             const Spacer(),
-            Text('Modal Price', style: const TextStyle(fontSize: 12)),
+            const Text('Modal Price', style: TextStyle(fontSize: 12)),
             Text('₹$price', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const Spacer(),
             Row(
@@ -238,8 +271,6 @@ class CropCard extends StatelessWidget {
                 PriceChip(label: 'Max Price', value: '₹$maxPrice', color: Colors.green.shade100),
               ],
             ),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(value: 0.5, backgroundColor: Colors.red.shade100, valueColor: AlwaysStoppedAnimation(Colors.green.shade100)),
           ],
         ),
       ),
@@ -257,10 +288,11 @@ class PriceChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Chip(
+      padding: const EdgeInsets.all(4),
       label: Column(
         children: [
           Text(label, style: const TextStyle(fontSize: 10)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
         ],
       ),
       backgroundColor: color,

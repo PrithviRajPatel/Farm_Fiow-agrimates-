@@ -1,7 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  final DatabaseReference _settingsRef = FirebaseDatabase.instance.ref('settings');
+
+  late Map<String, dynamic> _settings;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings = {};
+  }
+
+  void _updateSetting(String key, dynamic value) {
+    setState(() {
+      _settings[key] = value;
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    await _settingsRef.update(_settings);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Settings saved successfully!')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,30 +60,43 @@ class SettingsPage extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              _buildSystemSettingsCard(),
-              const SizedBox(height: 16),
-              _buildLanguageLocationCard(),
-              const SizedBox(height: 16),
-              _buildNotificationsCard(),
-              const SizedBox(height: 16),
-              _buildSystemConfigurationCard(),
-              const SizedBox(height: 16),
-              _buildSystemStatusCard(),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {},
-                child: const Text('Save Settings'),
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-              )
-            ],
-          ),
-        ),
-      ),
+      body: StreamBuilder(
+          stream: _settingsRef.onValue,
+          builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+            if (snapshot.hasData && !snapshot.hasError && snapshot.data!.snapshot.value != null) {
+              final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+              _settings = Map<String, dynamic>.from(data); // Initialize settings from Firebase
+
+              return SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      _buildSystemSettingsCard(),
+                      const SizedBox(height: 16),
+                      _buildLanguageLocationCard(),
+                      const SizedBox(height: 16),
+                      _buildNotificationsCard(),
+                      const SizedBox(height: 16),
+                      _buildSystemConfigurationCard(),
+                      const SizedBox(height: 16),
+                      _buildSystemStatusCard(),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _saveSettings,
+                        child: const Text('Save Settings'),
+                        style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+                      )
+                    ],
+                  ),
+                ),
+              );
+            } else if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            } else {
+              return const Center(child: CircularProgressIndicator());
+            }
+          }),
     );
   }
 
@@ -95,16 +139,17 @@ class SettingsPage extends StatelessWidget {
             const SizedBox(height: 16),
             const Text('Interface Language'),
             DropdownButtonFormField<String>(
-              value: 'us English',
-              items: ['us English'].map((String value) {
+              value: _settings['language'] ?? 'us English',
+              items: ['us English', 'hi Hindi', 'pa Punjabi'].map((String value) {
                 return DropdownMenuItem<String>(value: value, child: Text(value));
               }).toList(),
-              onChanged: (_) {},
+              onChanged: (val) => _updateSetting('language', val),
             ),
             const SizedBox(height: 16),
             const Text('Farm Location'),
             TextFormField(
-              initialValue: 'Banauli, Manaur, Mirzapur, UP, India',
+              initialValue: _settings['farm_location'] ?? '',
+              onChanged: (val) => _updateSetting('farm_location', val),
               decoration: const InputDecoration(prefixIcon: Icon(Icons.location_on)),
             ),
           ],
@@ -114,6 +159,7 @@ class SettingsPage extends StatelessWidget {
   }
 
   Widget _buildNotificationsCard() {
+    final notifications = _settings['notifications'] as Map<dynamic, dynamic>? ?? {};
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -121,26 +167,31 @@ class SettingsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildNotificationItem('Enable Notifications', 'Receive system alerts and updates', true),
-            _buildNotificationItem('Weather Alerts', 'ISRO weather warnings and forecasts', true),
-            _buildNotificationItem('Irrigation Alerts', 'Irrigation schedule and status updates', true),
-            _buildNotificationItem('Fertilizer Reminders', 'NPK deficiency and application reminders', true),
+            _buildNotificationItem('Enable Notifications', 'Receive system alerts and updates',
+                notifications['enable_notifications'] ?? true, (val) => _updateSetting('notifications/enable_notifications', val)),
+            _buildNotificationItem(
+                'Weather Alerts', 'ISRO weather warnings and forecasts', notifications['weather_alerts'] ?? true, (val) => _updateSetting('notifications/weather_alerts', val)),
+            _buildNotificationItem('Irrigation Alerts', 'Irrigation schedule and status updates',
+                notifications['irrigation_alerts'] ?? true, (val) => _updateSetting('notifications/irrigation_alerts', val)),
+            _buildNotificationItem('Fertilizer Reminders', 'NPK deficiency and application reminders',
+                notifications['fertilizer_reminders'] ?? true, (val) => _updateSetting('notifications/fertilizer_reminders', val)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNotificationItem(String title, String subtitle, bool value) {
+  Widget _buildNotificationItem(String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
     return SwitchListTile(
       title: Text(title),
       subtitle: Text(subtitle),
       value: value,
-      onChanged: (bool val) {},
+      onChanged: onChanged,
     );
   }
 
   Widget _buildSystemConfigurationCard() {
+    final systemConfig = _settings['system_configuration'] as Map<dynamic, dynamic>? ?? {};
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -148,24 +199,25 @@ class SettingsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('System Configuration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildNotificationItem('Auto Irrigation', 'Enable AI-powered automatic irrigation', true),
+            _buildNotificationItem('Auto Irrigation', 'Enable AI-powered automatic irrigation',
+                systemConfig['auto_irrigation'] ?? true, (val) => _updateSetting('system_configuration/auto_irrigation', val)),
             const SizedBox(height: 16),
             const Text('Sensor Reading Frequency (minutes)'),
-            DropdownButtonFormField<String>(
-              value: 'Every 30 minutes',
-              items: ['Every 30 minutes'].map((String value) {
-                return DropdownMenuItem<String>(value: value, child: Text(value));
+            DropdownButtonFormField<int>(
+              value: systemConfig['sensor_frequency'] ?? 30,
+              items: [10, 30, 60].map((int value) {
+                return DropdownMenuItem<int>(value: value, child: Text('Every $value minutes'));
               }).toList(),
-              onChanged: (_) {},
+              onChanged: (val) => _updateSetting('system_configuration/sensor_frequency', val),
             ),
             const SizedBox(height: 16),
             const Text('Weather Sync Interval (minutes)'),
-            DropdownButtonFormField<String>(
-              value: 'Every 10 minutes',
-              items: ['Every 10 minutes'].map((String value) {
-                return DropdownMenuItem<String>(value: value, child: Text(value));
+            DropdownButtonFormField<int>(
+              value: systemConfig['weather_interval'] ?? 10,
+              items: [5, 10, 15].map((int value) {
+                return DropdownMenuItem<int>(value: value, child: Text('Every $value minutes'));
               }).toList(),
-              onChanged: (_) {},
+              onChanged: (val) => _updateSetting('system_configuration/weather_interval', val),
             ),
           ],
         ),
@@ -174,6 +226,7 @@ class SettingsPage extends StatelessWidget {
   }
 
   Widget _buildSystemStatusCard() {
+    final systemStatus = _settings['system_status'] as Map<dynamic, dynamic>? ?? {};
     return Card(
       color: Colors.green.shade50,
       child: Padding(
@@ -183,12 +236,12 @@ class SettingsPage extends StatelessWidget {
           children: [
             const Text('System Status', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            _buildStatusItem('IoT Connection', 'Connected', Colors.green),
-            _buildStatusItem('AI Processing', 'Active', Colors.green),
-            _buildStatusItem('Weather Sync', 'Online', Colors.green),
-            _buildStatusItem('Solar Power', '87% Charged', Colors.orange),
-            _buildStatusItem('Sensor Network', '8/8 Online', Colors.green),
-            _buildStatusItem('Last Backup', '2 hours ago', Colors.blue),
+            _buildStatusItem('IoT Connection', systemStatus['iot_connection'] ?? 'N/A', Colors.green),
+            _buildStatusItem('AI Processing', systemStatus['ai_processing'] ?? 'N/A', Colors.green),
+            _buildStatusItem('Weather Sync', systemStatus['weather_sync'] ?? 'N/A', Colors.green),
+            _buildStatusItem('Solar Power', systemStatus['solar_power'] ?? 'N/A', Colors.orange),
+            _buildStatusItem('Sensor Network', systemStatus['sensor_network'] ?? 'N/A', Colors.green),
+            _buildStatusItem('Last Backup', systemStatus['last_backup'] ?? 'N/A', Colors.blue),
           ],
         ),
       ),

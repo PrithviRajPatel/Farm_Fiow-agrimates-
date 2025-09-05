@@ -4,9 +4,12 @@ import 'package:farm_flow/market_rates_page.dart';
 import 'package:farm_flow/plant_health_page.dart';
 import 'package:farm_flow/sensors_page.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:farm_flow/controls_page.dart';
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
+  final List<String> crops;
+  const DashboardPage({super.key, required this.crops});
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -15,17 +18,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = [
-    const HomePage(),
-    const SensorsPage(),
-    const WeatherPage(),
-    const AIRecommendationsPage(),
-    const PlantHealthPage(),
-    const AIAssistantPage(),
-    const MarketRatesPage(),
-    const ControlsPage(),
-    const SettingsPage(),
-  ];
+  late final List<Widget> _pages;
 
   final List<String> _pageTitles = [
     'Dashboard',
@@ -38,6 +31,22 @@ class _DashboardPageState extends State<DashboardPage> {
     'Controls',
     'Settings',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const HomePage(),
+      const SensorsPage(),
+      const WeatherPage(),
+      AIRecommendationsPage(crops: widget.crops),
+      const PlantHealthPage(),
+      const AIAssistantPage(),
+      const MarketRatesPage(),
+      const ControlsPage(),
+      const SettingsPage(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -165,8 +174,16 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final DatabaseReference _sensorsRef = FirebaseDatabase.instance.ref('sensors');
+  final DatabaseReference _recommendationsRef = FirebaseDatabase.instance.ref('recommendations');
 
   @override
   Widget build(BuildContext context) {
@@ -186,21 +203,53 @@ class HomePage extends StatelessWidget {
               style: TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildStatCard('Soil Moisture', '28%', '+5%'),
-                _buildStatCard('Temperature', '32°C', '-2%'),
-                _buildStatCard('NPK Levels', '45%', '+8%'),
-                _buildStatCard('Power Level', '87%', '0%'),
-              ],
+            StreamBuilder(
+              stream: _sensorsRef.onValue,
+              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                if (snapshot.hasData && !snapshot.hasError && snapshot.data!.snapshot.value != null) {
+                  final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+                  final sensors = data.values.toList();
+                  final soilMoisture = sensors.firstWhere((s) => s['name'] == 'Soil Moisture', orElse: () => null);
+                  final temperature = sensors.firstWhere((s) => s['name'] == 'Temperature', orElse: () => null);
+                  final npk = sensors.firstWhere((s) => s['name'] == 'Npk', orElse: () => null);
+
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildStatCard('Soil Moisture', soilMoisture != null ? soilMoisture['value'] : 'N/A', '+5%'),
+                      _buildStatCard('Temperature', temperature != null ? temperature['value'] : 'N/A', '-2%'),
+                      _buildStatCard('NPK Levels', npk != null ? npk['value'] : 'N/A', '+8%'),
+                      _buildStatCard('Power Level', '87%', '0%'),
+                    ],
+                  );
+                } else {
+                  return const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      CircularProgressIndicator(),
+                    ],
+                  );
+                }
+              },
             ),
             const SizedBox(height: 24),
             _buildWeatherCard(),
             const SizedBox(height: 24),
             _buildSmartIrrigationCard(),
             const SizedBox(height: 24),
-            _buildAIRecommendationsCard(),
+            StreamBuilder(
+              stream: _recommendationsRef.onValue,
+              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                if (snapshot.hasData && !snapshot.hasError && snapshot.data!.snapshot.value != null) {
+                  final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+                  final recommendations = data.values.toList();
+                  final highPriorityRecommendation = recommendations.firstWhere((r) => r['priority'] == 'High', orElse: () => null);
+                  return _buildAIRecommendationsCard(highPriorityRecommendation);
+                } else {
+                  return const CircularProgressIndicator();
+                }
+              },
+            ),
           ],
         ),
       ),
@@ -337,7 +386,15 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildAIRecommendationsCard() {
+  Widget _buildAIRecommendationsCard(dynamic recommendation) {
+    if (recommendation == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('No high priority recommendations at the moment.'),
+        ),
+      );
+    }
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -349,10 +406,9 @@ class HomePage extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            const Text('NPK Deficiency Detected in Field B'),
+            Text(recommendation['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text(
-                'Low nitrogen levels detected in Field B. Soil analysis shows N-P-K ratio of 45-65-70. Recommend applying 25kg Urea per acre within next 3 days for optimal crop growth.'),
+            Text(recommendation['description'] ?? ''),
             const SizedBox(height: 16),
             TextButton(
               onPressed: () {},

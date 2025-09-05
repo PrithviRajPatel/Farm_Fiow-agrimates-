@@ -1,55 +1,64 @@
-import 'package:flutter/material.dart';
 
-class ControlsPage extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+
+class ControlsPage extends StatefulWidget {
   const ControlsPage({super.key});
+
+  @override
+  State<ControlsPage> createState() => _ControlsPageState();
+}
+
+class _ControlsPageState extends State<ControlsPage> {
+  final DatabaseReference _controlsRef = FirebaseDatabase.instance.ref('controls');
+  // TODO: Add your Gemini API key here
+  final String _geminiApiKey = 'AIzaSyC-a3CqW2S9j2lLuL6ffFPtT5ayvIE1Ygs';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Controls', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text('Real-time farming intelligence', style: TextStyle(fontSize: 12)),
-          ],
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.agriculture),
-            label: const Text('Agribot AI'),
-            style: TextButton.styleFrom(foregroundColor: Colors.black),
-          ),
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.language),
-            label: const Text('us English'),
-            style: TextButton.styleFrom(foregroundColor: Colors.black),
-          ),
-        ],
+        title: const Text('Controls'),
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSystemControlsCard(),
-              const SizedBox(height: 24),
-              _buildManualIrrigationControls(),
-              const SizedBox(height: 24),
-              _buildIrrigationSchedule(),
-              const SizedBox(height: 24),
-              _buildEmergencyControls(),
-            ],
-          ),
-        ),
+      body: StreamBuilder(
+        stream: _controlsRef.onValue,
+        builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
+          if (snapshot.hasData &&
+              !snapshot.hasError &&
+              snapshot.data!.snapshot.value != null) {
+            final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+            final systemControls = data['system_controls'] ?? {};
+            final manualIrrigation = data['manual_irrigation'] ?? {};
+
+            return SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSystemControlsCard(systemControls),
+                    const SizedBox(height: 24),
+                    _buildManualIrrigationControls(manualIrrigation),
+                    const SizedBox(height: 24),
+                    _buildAiScheduleCard(),
+                    const SizedBox(height: 24),
+                    _buildEmergencyControls(),
+                  ],
+                ),
+              ),
+            );
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else {
+            return const Center(child: CircularProgressIndicator());
+          }
+        },
       ),
     );
   }
 
-  Widget _buildSystemControlsCard() {
+  Widget _buildSystemControlsCard(Map<dynamic, dynamic> systemControls) {
     return Card(
       color: Colors.deepPurple.shade300,
       child: Padding(
@@ -66,7 +75,7 @@ class ControlsPage extends StatelessWidget {
               ),
             ),
             const Text(
-              'Manage your smart farming systems and schedules',
+              'Manage your smart farming systems',
               style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
@@ -76,10 +85,16 @@ class ControlsPage extends StatelessWidget {
               physics: const NeverScrollableScrollPhysics(),
               childAspectRatio: 3,
               children: [
-                _buildControlToggle('Irrigation System', true),
-                _buildControlToggle('AI Automation', true),
-                _buildControlToggle('Sensor Network', true),
-                _buildControlToggle('Weather Sync', true),
+                _buildControlToggle(
+                  'Irrigation System',
+                  systemControls['irrigation_system'] ?? false,
+                  (val) => _controlsRef.child('system_controls/irrigation_system').set(val),
+                ),
+                _buildControlToggle(
+                  'AI Automation',
+                  systemControls['ai_automation'] ?? false,
+                  (val) => _controlsRef.child('system_controls/ai_automation').set(val),
+                ),
               ],
             ),
           ],
@@ -88,7 +103,7 @@ class ControlsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildControlToggle(String title, bool value) {
+  Widget _buildControlToggle(String title, bool value, ValueChanged<bool> onChanged) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(8.0),
@@ -96,14 +111,14 @@ class ControlsPage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(title),
-            Switch(value: value, onChanged: (val) {}),
+            Switch(value: value, onChanged: onChanged),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildManualIrrigationControls() {
+  Widget _buildManualIrrigationControls(Map<dynamic, dynamic> manualIrrigation) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -118,11 +133,11 @@ class ControlsPage extends StatelessWidget {
             Wrap(
               spacing: 16,
               runSpacing: 16,
-              children: [
-                _buildFieldControl('Field A'),
-                _buildFieldControl('Field B'),
-                _buildFieldControl('Field C'),
-              ],
+              children: manualIrrigation.entries.map((entry) {
+                final fieldName = entry.key;
+                final fieldData = entry.value;
+                return _buildFieldControl(fieldName, fieldData);
+              }).toList(),
             ),
           ],
         ),
@@ -130,7 +145,7 @@ class ControlsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFieldControl(String fieldName) {
+  Widget _buildFieldControl(String fieldName, Map<dynamic, dynamic> fieldData) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12.0),
@@ -138,19 +153,20 @@ class ControlsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(fieldName, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const Chip(label: Text('Scheduled')),
-            const Text('Next Run: 06:30 AM'),
+            Chip(label: Text(fieldData['status'] ?? 'N/A')),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () =>
+                      _controlsRef.child('manual_irrigation/$fieldName/status').set('Active'),
                   icon: const Icon(Icons.play_arrow),
                   label: const Text('Start'),
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: () =>
+                      _controlsRef.child('manual_irrigation/$fieldName/status').set('Stopped'),
                   icon: const Icon(Icons.stop),
                   label: const Text('Stop'),
                 ),
@@ -162,46 +178,23 @@ class ControlsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildIrrigationSchedule() {
+  Widget _buildAiScheduleCard() {
     return Card(
+      color: Colors.blue.shade50,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Irrigation Schedule',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.edit),
-                  label: const Text('Edit Schedule'),
-                ),
-              ],
+            const Text(
+              'AI-Powered Irrigation Schedule',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue),
             ),
             const SizedBox(height: 16),
-            _buildScheduleItem(
-              field: 'Field B',
-              time: '1/22/2024, 5:45:00 AM',
-              duration: '0 min',
-              water: '0L',
-              type: 'AI Generated',
-              reason: 'Rain forecast - irrigation postponed',
-              status: 'Skipped',
-            ),
-            _buildScheduleItem(
-              field: 'Field C',
-              time: '1/21/2024, 7:00:00 AM',
-              duration: '25 min',
-              water: '320L',
-              type: 'Manual',
-              reason: 'Regular maintenance irrigation',
-              status: 'Scheduled',
-              actions: true,
+            ElevatedButton.icon(
+              onPressed: _generateSchedule,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Generate Schedule'),
             ),
           ],
         ),
@@ -209,51 +202,25 @@ class ControlsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildScheduleItem({
-    required String field,
-    required String time,
-    required String duration,
-    required String water,
-    required String type,
-    required String reason,
-    required String status,
-    bool actions = false,
-  }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [Text('$field - $time'), Chip(label: Text(status))],
-            ),
-            const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Duration: $duration'),
-                Text('Water: $water'),
-                Text('Type: $type'),
-                Text('Reason: $reason'),
-              ],
-            ),
-            if (actions)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  ElevatedButton(onPressed: () {}, child: const Text('Start Now')),
-                  const SizedBox(width: 8),
-                  OutlinedButton(onPressed: () {}, child: const Text('Modify')),
-                  const SizedBox(width: 8),
-                  TextButton(onPressed: () {}, child: const Text('Cancel')),
-                ],
-              )
-          ],
-        ),
-      ),
-    );
+  Future<void> _generateSchedule() async {
+    final model = GenerativeModel(model: 'gemini-pro', apiKey: _geminiApiKey);
+    const prompt =
+        'Generate an optimal irrigation schedule for a farm with 3 fields. Consider factors like crop type, weather forecast, and soil moisture levels. Format the output as a JSON object with field names as keys and a schedule as the value.';
+
+    try {
+      final content = [Content.text(prompt)];
+      final response = await model.generateContent(content);
+      final jsonResponse = response.text?.replaceAll('\n', '').replaceAll('  ', '') ?? '{}';
+      final schedule = json.decode(jsonResponse);
+      _controlsRef.child('irrigation_schedule').set(schedule);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('AI-powered schedule generated and applied!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error generating schedule: $e')),
+      );
+    }
   }
 
   Widget _buildEmergencyControls() {
@@ -272,9 +239,16 @@ class ControlsPage extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildEmergencyButton('Emergency Stop', Icons.power_settings_new),
-                _buildEmergencyButton('Stop All Irrigation', Icons.water_drop),
-                _buildEmergencyButton('Manual Override', Icons.settings),
+                _buildEmergencyButton(
+                  'Emergency Stop',
+                  Icons.power_settings_new,
+                  () => _controlsRef.child('emergency_stop').set(true),
+                ),
+                _buildEmergencyButton(
+                  'Stop All Irrigation',
+                  Icons.water_drop,
+                  () => _controlsRef.child('stop_all_irrigation').set(true),
+                ),
               ],
             ),
           ],
@@ -283,9 +257,9 @@ class ControlsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildEmergencyButton(String label, IconData icon) {
+  Widget _buildEmergencyButton(String label, IconData icon, VoidCallback onPressed) {
     return ElevatedButton.icon(
-      onPressed: () {},
+      onPressed: onPressed,
       icon: Icon(icon),
       label: Text(label),
       style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade100),

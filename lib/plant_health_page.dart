@@ -1,33 +1,71 @@
-import 'package:flutter/material.dart';
 
-class PlantHealthPage extends StatelessWidget {
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+
+class PlantHealthPage extends StatefulWidget {
   const PlantHealthPage({super.key});
+
+  @override
+  State<PlantHealthPage> createState() => _PlantHealthPageState();
+}
+
+class _PlantHealthPageState extends State<PlantHealthPage> {
+  // TODO: Add your Gemini API key here
+  static const String _apiKey = 'AIzaSyC-a3CqW2S9j2lLuL6ffFPtT5ayvIE1Ygs';
+
+  final ImagePicker _picker = ImagePicker();
+  File? _image;
+  String? _analysisResult;
+  bool _isAnalyzing = false;
+
+  Future<void> _pickImage(ImageSource source) async {
+    final pickedFile = await _picker.pickImage(source: source);
+    if (pickedFile != null) {
+      setState(() {
+        _image = File(pickedFile.path);
+        _analysisResult = null;
+      });
+      await _analyzeImage();
+    }
+  }
+
+  Future<void> _analyzeImage() async {
+    if (_image == null) return;
+
+    setState(() {
+      _isAnalyzing = true;
+    });
+
+    final model = GenerativeModel(model: 'gemini-pro-vision', apiKey: _apiKey);
+    final imageBytes = await _image!.readAsBytes();
+    final content = [Content.multi([
+      TextPart('Analyze this plant image and provide a health assessment. If a disease is detected, identify it, and suggest a treatment.'),
+      DataPart('image/jpeg', imageBytes),
+    ])];
+
+    try {
+      final response = await model.generateContent(content);
+      setState(() {
+        _analysisResult = response.text ?? 'No analysis result.';
+      });
+    } catch (e) {
+      setState(() {
+        _analysisResult = 'Error during analysis: ${e.toString()}';
+      });
+    } finally {
+      setState(() {
+        _isAnalyzing = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('PlantHealth', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text('Real-time farming intelligence', style: TextStyle(fontSize: 12)),
-          ],
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.agriculture),
-            label: const Text('Agribot AI'),
-            style: TextButton.styleFrom(foregroundColor: Colors.black),
-          ),
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.language),
-            label: const Text('us English'),
-            style: TextButton.styleFrom(foregroundColor: Colors.black),
-          ),
-        ],
+        title: const Text('Plant Health'),
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -38,8 +76,7 @@ class PlantHealthPage extends StatelessWidget {
               _buildScannerCard(),
               const SizedBox(height: 24),
               _buildImageCaptureSection(),
-              const SizedBox(height: 24),
-              _buildDetectionSection(),
+              if (_image != null) _buildAnalysisSection(),
             ],
           ),
         ),
@@ -68,7 +105,7 @@ class PlantHealthPage extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'AI-powered disease and pest detection for your crops',
+                  'AI-powered disease and pest detection',
                   style: TextStyle(color: Colors.white70),
                 ),
               ],
@@ -97,7 +134,7 @@ class PlantHealthPage extends StatelessWidget {
                   child: Card(
                     color: Colors.blue.shade400,
                     child: InkWell(
-                      onTap: () {},
+                      onTap: () => _pickImage(ImageSource.camera),
                       child: const SizedBox(
                         height: 120,
                         child: Column(
@@ -120,14 +157,13 @@ class PlantHealthPage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: InkWell(
-                      onTap: () {},
+                      onTap: () => _pickImage(ImageSource.gallery),
                       child: const SizedBox(
                         height: 120,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.upload_file, color: Colors.green, size: 40),
-                            SizedBox(height: 8),
                             Text('Upload Image', style: TextStyle(color: Colors.green)),
                           ],
                         ),
@@ -137,19 +173,13 @@ class PlantHealthPage extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            const Text('For best results:'),
-            const Text('  • Take clear, well-lit photos'),
-            const Text('  • Focus on affected plant parts'),
-            const Text('  • Avoid blurry or dark images'),
-            const Text('  • Include multiple angles if possible'),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDetectionSection() {
+  Widget _buildAnalysisSection() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -157,72 +187,33 @@ class PlantHealthPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'What Can We Detect?',
+              'Analysis Result',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            _buildDetectionCategory(
-              color: Colors.red,
-              title: 'Plant Diseases',
-              items: [
-                'Leaf spot diseases',
-                'Blight and rust',
-                'Powdery mildew',
-                'Bacterial infections',
-                'Viral symptoms',
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildDetectionCategory(
-              color: Colors.orange,
-              title: 'Pest Infestations',
-              items: [
-                'Aphids and thrips',
-                'Caterpillar damage',
-                'Spider mites',
-                'Whitefly infestations',
-                'Leaf miner damage',
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildDetectionCategory(
-              color: Colors.yellow.shade800,
-              title: 'Nutrient Deficiencies',
-              items: [
-                'Nitrogen deficiency',
-                'Phosphorus shortage',
-                'Potassium deficiency',
-                'Iron chlorosis',
-                'Magnesium deficiency',
+            Row(
+              children: [
+                if (_image != null)
+                  Image.file(
+                    _image!,
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.cover,
+                  ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _isAnalyzing
+                      ? const Center(child: CircularProgressIndicator())
+                      : Text(
+                          _analysisResult ?? 'Analysis complete.',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                ),
               ],
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildDetectionCategory({
-    required Color color,
-    required String title,
-    required List<String> items,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.circle, color: color, size: 16),
-            const SizedBox(width: 8),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ...items.map((item) => Padding(
-              padding: const EdgeInsets.only(left: 24, bottom: 4),
-              child: Text('• $item'),
-            )),
-      ],
     );
   }
 }

@@ -1,56 +1,155 @@
-import 'package:flutter/material.dart';
 
-class WeatherPage extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+
+class WeatherPage extends StatefulWidget {
   const WeatherPage({super.key});
+
+  @override
+  State<WeatherPage> createState() => _WeatherPageState();
+}
+
+class _WeatherPageState extends State<WeatherPage> {
+  // TODO: Add your OpenWeatherMap API key here
+  final String _weatherApiKey = 'YOUR_OPENWEATHERMAP_API_KEY';
+  // TODO: Add your Gemini API key here
+  final String _geminiApiKey = 'YOUR_GEMINI_API_KEY';
+
+  String _location = 'Loading...';
+  String _temperature = '';
+  String _feelsLike = '';
+  String _humidity = '';
+  String _windSpeed = '';
+  String _uvIndex = '';
+  String _rainChance = '';
+  String _aiAdvice = 'Loading advice...';
+  List<dynamic> _forecast = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchWeatherData();
+  }
+
+  Future<void> _fetchWeatherData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      Position position = await _determinePosition();
+      final weatherResponse = await http.get(Uri.parse(
+          'https://api.openweathermap.org/data/2.5/weather?lat=${position.latitude}&lon=${position.longitude}&appid=$_weatherApiKey&units=metric'));
+      final forecastResponse = await http.get(Uri.parse(
+          'https://api.openweathermap.org/data/2.5/forecast?lat=${position.latitude}&lon=${position.longitude}&appid=$_weatherApiKey&units=metric'));
+
+      if (weatherResponse.statusCode == 200 && forecastResponse.statusCode == 200) {
+        final weatherData = json.decode(weatherResponse.body);
+        final forecastData = json.decode(forecastResponse.body);
+
+        setState(() {
+          _location = weatherData['name'];
+          _temperature = weatherData['main']['temp'].toString();
+          _feelsLike = weatherData['main']['feels_like'].toString();
+          _humidity = weatherData['main']['humidity'].toString();
+          _windSpeed = weatherData['wind']['speed'].toString();
+          _uvIndex = 'N/A'; // OpenWeatherMap free tier doesn't provide UV index
+          _rainChance = (forecastData['list'][0]['pop'] * 100).toStringAsFixed(0);
+          _forecast = forecastData['list'];
+          _isLoading = false;
+        });
+        _fetchAiAdvice();
+      } else {
+        throw Exception('Failed to load weather data');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _fetchAiAdvice() async {
+    final model = GenerativeModel(model: 'gemini-pro', apiKey: _geminiApiKey);
+    final prompt =
+        'Given the weather conditions: temperature $_temperature°C, humidity $_humidity%, wind speed $_windSpeed km/h, and a $_rainChance% chance of rain, what is your farming advice for the day?';
+    try {
+      final content = [Content.text(prompt)];
+      final response = await model.generateContent(content);
+      setState(() {
+        _aiAdvice = response.text ?? 'No advice generated.';
+      });
+    } catch (e) {
+      setState(() {
+        _aiAdvice = 'Failed to get AI advice.';
+      });
+    }
+  }
+
+  Future<Position> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return Future.error('Location services are disabled.');
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return Future.error('Location permissions are denied');
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return Future.error(
+          'Location permissions are permanently denied, we cannot request permissions.');
+    }
+
+    return await Geolocator.getCurrentPosition();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Weather', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text('Real-time farming intelligence', style: TextStyle(fontSize: 12)),
-          ],
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.agriculture),
-            label: const Text('Agribot AI'),
-            style: TextButton.styleFrom(foregroundColor: Colors.black),
-          ),
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.language),
-            label: const Text('us English'),
-            style: TextButton.styleFrom(foregroundColor: Colors.black),
-          ),
-        ],
+        title: const Text('Weather'),
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildLiveWeatherCard(),
-              const SizedBox(height: 24),
-              _buildCurrentConditionsCard(),
-              const SizedBox(height: 24),
-              const Text(
-                'Extended Weather Forecast',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              _buildForecast(),
-              const SizedBox(height: 24),
-              _buildImpactAnalysis(),
-            ],
-          ),
-        ),
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(child: Text('Error: $_errorMessage'))
+              : SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLiveWeatherCard(),
+                        const SizedBox(height: 24),
+                        _buildCurrentConditionsCard(),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Extended Weather Forecast',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildForecast(),
+                        const SizedBox(height: 24),
+                        _buildImpactAnalysis(),
+                      ],
+                    ),
+                  ),
+                ),
     );
   }
 
@@ -64,38 +163,27 @@ class WeatherPage extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Column(
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Live Weather for Punjab, India',
-                      style: TextStyle(
+                      'Live Weather for $_location',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 4),
-                    Text(
+                    const SizedBox(height: 4),
+                    const Text(
                       'Real-time satellite-powered weather intelligence',
                       style: TextStyle(color: Colors.white70),
                     ),
                   ],
                 ),
                 IconButton(
-                  onPressed: () {},
+                  onPressed: _fetchWeatherData,
                   icon: const Icon(Icons.refresh, color: Colors.white),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Text('Live updates • Last refreshed: 1:57:20 AM', style: TextStyle(color: Colors.white70)),
-                const Spacer(),
-                Chip(
-                  label: const Text('Auto-refresh: 5 min'),
-                  backgroundColor: Colors.white.withOpacity(0.3),
                 ),
               ],
             ),
@@ -116,38 +204,38 @@ class WeatherPage extends StatelessWidget {
               children: [
                 const Icon(Icons.wb_sunny, size: 40, color: Colors.orange),
                 const SizedBox(width: 16),
-                const Column(
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Current Conditions', style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text('Punjab, India'),
+                    const Text('Current Conditions', style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text(_location),
                   ],
                 ),
                 const Spacer(),
-                const Text(
-                  '32°C',
-                  style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+                Text(
+                  '$_temperature°C',
+                  style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(width: 8),
-                const Text('Feels like 34°C'),
+                Text('Feels like $_feelsLike°C'),
               ],
             ),
             const SizedBox(height: 24),
-            const Row(
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                WeatherDetail(icon: Icons.water_drop, value: '66%', label: 'Humidity'),
-                WeatherDetail(icon: Icons.cloudy_snowing, value: '39%', label: 'Rain Chance'),
-                WeatherDetail(icon: Icons.air, value: '3 km/h', label: 'Wind Speed'),
-                WeatherDetail(icon: Icons.visibility, value: '1', label: 'UV Index'),
+                WeatherDetail(icon: Icons.water_drop, value: '$_humidity%', label: 'Humidity'),
+                WeatherDetail(icon: Icons.cloudy_snowing, value: '$_rainChance%', label: 'Rain Chance'),
+                WeatherDetail(icon: Icons.air, value: '$_windSpeed km/h', label: 'Wind Speed'),
+                WeatherDetail(icon: Icons.visibility, value: _uvIndex, label: 'UV Index'),
               ],
             ),
             const SizedBox(height: 16),
             Card(
               color: Colors.green.shade100,
-              child: const Padding(
-                padding: EdgeInsets.all(12.0),
-                child: Text('Live Farming Advice\nFavorable conditions for farming activities'),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Text('Live Farming Advice\n$_aiAdvice'),
               ),
             )
           ],
@@ -159,14 +247,18 @@ class WeatherPage extends StatelessWidget {
   Widget _buildForecast() {
     return SizedBox(
       height: 150,
-      child: ListView(
+      child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        children: const [
-          ForecastCard(day: 'Today', temp: '32°C', rain: '39%', humidity: '66%'),
-          ForecastCard(day: 'Thu, Sep 4', temp: '32°C', rain: '39%', humidity: '66%', expectedRain: '8mm'),
-          ForecastCard(day: 'Fri, Sep 5', temp: '32°C', rain: '0%', humidity: '66%'),
-          ForecastCard(day: 'Sat, Sep 6', temp: '32°C', rain: '0%', humidity: '66%'),
-        ],
+        itemCount: _forecast.length,
+        itemBuilder: (context, index) {
+          final item = _forecast[index];
+          return ForecastCard(
+            day: DateTime.fromMillisecondsSinceEpoch(item['dt'] * 1000).toString(),
+            temp: '${item['main']['temp']}°C',
+            rain: '${(item['pop'] * 100).toStringAsFixed(0)}%',
+            humidity: '${item['main']['humidity']}%',
+          );
+        },
       ),
     );
   }
@@ -179,65 +271,14 @@ class WeatherPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Live Agricultural Impact Analysis',
+              'AI Farming Advisor',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Real-time Insights', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      _buildInsightItem(Colors.green, 'Current conditions updated every 5 minutes'),
-                      _buildInsightItem(Colors.blue, 'ISRO satellite data integration active'),
-                      _buildInsightItem(Colors.orange, 'AI-powered farming recommendations'),
-                      _buildInsightItem(Colors.purple, 'Automatic irrigation adjustments'),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Smart Actions', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      _buildActionItem(Icons.decision, 'AI Decision: Normal irrigation schedule active'),
-                      _buildActionItem(Icons.notification_important, 'Alerts: Weather conditions normal'),
-                      _buildActionItem(Icons.water, 'Water Management: Optimizing based on live humidity data'),
-                      _buildActionItem(Icons.pest_control, 'Crop Care: Monitoring pest risk from weather conditions'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            Text(_aiAdvice),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildInsightItem(Color color, String text) {
-    return Row(
-      children: [
-        Icon(Icons.circle, color: color, size: 8),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text)),
-      ],
-    );
-  }
-
-  Widget _buildActionItem(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 16),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text)),
-      ],
     );
   }
 }
@@ -267,7 +308,6 @@ class ForecastCard extends StatelessWidget {
   final String temp;
   final String rain;
   final String humidity;
-  final String? expectedRain;
 
   const ForecastCard({
     super.key,
@@ -275,7 +315,6 @@ class ForecastCard extends StatelessWidget {
     required this.temp,
     required this.rain,
     required this.humidity,
-    this.expectedRain,
   });
 
   @override
@@ -293,7 +332,6 @@ class ForecastCard extends StatelessWidget {
             Text('Temperature: $temp'),
             Text('Rain Chance: $rain'),
             Text('Humidity: $humidity'),
-            if (expectedRain != null) Text('Expected Rain: $expectedRain'),
           ],
         ),
       ),
